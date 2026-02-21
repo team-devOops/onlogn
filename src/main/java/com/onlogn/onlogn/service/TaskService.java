@@ -71,7 +71,9 @@ public class TaskService {
         if (tags != null && !tags.isEmpty()) {
             task.setTags(tags);
         } else {
-            List<String> aiTags = bedrockTagExtractor.extractTags(title);
+            List<String> aiTags = bedrockTagExtractor.extractTags(title).stream()
+                    .map(BedrockTagExtractor.ContextTag::tag)
+                    .toList();
             if (!aiTags.isEmpty()) {
                 task.setTags(aiTags);
             }
