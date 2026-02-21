@@ -273,17 +273,6 @@
                 </div>
 
                 <div id="task-list" class="space-y-1"></div>
-
-                <div id="today-insight" class="hidden mt-8 md:mt-12 p-4 md:p-5 bg-primary/5 rounded-xl border border-primary/10 relative overflow-hidden group">
-                    <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform">
-                        <span class="material-symbols-outlined text-4xl md:text-5xl text-primary">auto_awesome</span>
-                    </div>
-                    <div class="flex items-center gap-2 mb-2">
-                        <span class="material-symbols-outlined text-primary text-base md:text-lg">insights</span>
-                        <span class="text-[9px] md:text-[10px] font-bold text-primary uppercase tracking-widest">Today's Insight</span>
-                    </div>
-                    <p id="insight-text" class="text-[11px] md:text-xs leading-relaxed opacity-60 max-w-2xl"></p>
-                </div>
             </div>
         </main>
     </div>
@@ -322,12 +311,7 @@
                 </div>
             </div>
 
-            <div id="category-chips" class="flex flex-wrap items-center gap-2 pl-10">
-                <button id="btn-add-tag" class="tag-item text-gray-400 hover:text-primary">
-                    <span class="material-symbols-outlined text-[18px]">add</span>
-                    추가
-                </button>
-            </div>
+            <div id="category-chips" class="flex flex-wrap items-center gap-2 pl-10"></div>
 
             <div class="flex flex-col gap-5 border-t border-gray-100 dark:border-white/5 pt-6">
                 <div class="flex items-center gap-3">
@@ -608,7 +592,10 @@
 
         let currentYear, currentMonth, selectedDate;
         let pickerYear, pickerMonth, pickerSelectedDate;
+        let pickerContext = 'add';
         let taskStartTime = '', taskEndTime = '';
+        let editTaskDate = null;
+        let editTaskStartTime = '', editTaskEndTime = '';
         let currentUser = null;
         let groupMap = {};
         let groupOrder = [];
@@ -872,6 +859,70 @@
             } catch (e) { return null; }
         }
 
+        function toPickerTimeValue(dateTime) {
+            if (!dateTime) return '';
+            try {
+                const d = new Date(dateTime);
+                return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+            } catch (e) {
+                return '';
+            }
+        }
+
+        function formatPickerTimeValue(value) {
+            if (!value) return '';
+            const parts = value.split(':');
+            if (parts.length !== 2) return '';
+            const h = parseInt(parts[0], 10);
+            const m = parts[1];
+            const period = h < 12 ? '오전' : '오후';
+            const dispH = h === 0 ? 12 : (h > 12 ? h - 12 : h);
+            return `${period} ${dispH}:${m}`;
+        }
+
+        function setPickerTimeValues(startValue, endValue) {
+            const startSel = document.getElementById('picker-start-time');
+            const endSel = document.getElementById('picker-end-time');
+            startSel.value = startValue || '14:00';
+            endSel.value = endValue || '15:00';
+        }
+
+        function buildInstantFromDateAndTime(dateObj, timeValue) {
+            if (!dateObj || !timeValue) return null;
+            const parts = timeValue.split(':');
+            if (parts.length !== 2) return null;
+            const h = parseInt(parts[0], 10);
+            const m = parseInt(parts[1], 10);
+            if (Number.isNaN(h) || Number.isNaN(m)) return null;
+            const localDateTime = new Date(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate(), h, m, 0, 0);
+            return localDateTime.toISOString();
+        }
+
+        function renderEditDateTimeDisplay() {
+            const dateTextEl = document.getElementById('edit-date-text');
+            const separatorEl = document.getElementById('edit-time-separator');
+            const iconEl = document.getElementById('edit-time-icon');
+            const timeTextEl = document.getElementById('edit-time-text');
+
+            if (editTaskDate) {
+                dateTextEl.textContent = `${editTaskDate.getMonth() + 1}월 ${editTaskDate.getDate()}일 ${DAY_NAMES[editTaskDate.getDay()]}요일`;
+            } else {
+                dateTextEl.textContent = '날짜 미지정';
+            }
+
+            if (editTaskStartTime && editTaskEndTime) {
+                separatorEl.classList.remove('hidden');
+                iconEl.classList.remove('hidden');
+                timeTextEl.classList.remove('hidden');
+                timeTextEl.textContent = `${formatPickerTimeValue(editTaskStartTime)} - ${formatPickerTimeValue(editTaskEndTime)}`;
+            } else {
+                separatorEl.classList.add('hidden');
+                iconEl.classList.add('hidden');
+                timeTextEl.classList.add('hidden');
+                timeTextEl.textContent = '';
+            }
+        }
+
         function fetchMonthlyStats() {
             fetch(`/api/v1/tasks/calendar/monthly?year=${currentYear}&month=${currentMonth + 1}`, { headers: authHeaders() })
                 .then(r => r.ok ? r.json() : null)
@@ -926,13 +977,6 @@
 
             const completed = tasks.filter(t => t.completed).length;
             document.getElementById('task-progress').textContent = `${completed} / ${tasks.length} 완료`;
-
-            const insightEl = document.getElementById('today-insight');
-            if (tasks.length === 0) {
-                insightEl.classList.add('hidden');
-            } else {
-                insightEl.classList.remove('hidden');
-            }
 
             const grouped = {};
             tasks.forEach(t => {
@@ -1148,24 +1192,10 @@
                     const t = resp.data;
                     document.getElementById('edit-title-input').value = t.title || '';
 
-                    const dateText = t.due_date || '';
-                    if (dateText) {
-                        const d = new Date(dateText + 'T00:00:00');
-                        document.getElementById('edit-date-text').textContent = `${d.getMonth()+1}월 ${d.getDate()}일 ${DAY_NAMES[d.getDay()]}요일`;
-                    } else {
-                        document.getElementById('edit-date-text').textContent = '날짜 미지정';
-                    }
-
-                    if (t.start_time) {
-                        document.getElementById('edit-time-separator').classList.remove('hidden');
-                        document.getElementById('edit-time-icon').classList.remove('hidden');
-                        document.getElementById('edit-time-text').classList.remove('hidden');
-                        document.getElementById('edit-time-text').textContent = formatTimeLabel(t.start_time, t.end_time) || '';
-                    } else {
-                        document.getElementById('edit-time-separator').classList.add('hidden');
-                        document.getElementById('edit-time-icon').classList.add('hidden');
-                        document.getElementById('edit-time-text').classList.add('hidden');
-                    }
+                    editTaskDate = t.due_date ? new Date(t.due_date + 'T00:00:00') : new Date(selectedDate);
+                    editTaskStartTime = toPickerTimeValue(t.start_time);
+                    editTaskEndTime = toPickerTimeValue(t.end_time);
+                    renderEditDateTimeDisplay();
 
                     editIsPublic = t.visibility === 'public';
                     const toggle = document.getElementById('edit-visibility-toggle');
@@ -1195,6 +1225,9 @@
             document.getElementById('edit-task-modal').classList.add('hidden');
             document.body.style.overflow = '';
             editingTaskId = null;
+            editTaskDate = null;
+            editTaskStartTime = '';
+            editTaskEndTime = '';
         }
 
         function saveEditTask() {
@@ -1209,6 +1242,12 @@
                 visibility: editIsPublic ? 'public' : 'private',
                 reference_links: link ? [link] : []
             };
+            const taskDate = editTaskDate || selectedDate;
+            payload.due_date = formatDate(taskDate);
+            const editStartInstant = buildInstantFromDateAndTime(taskDate, editTaskStartTime);
+            const editEndInstant = buildInstantFromDateAndTime(taskDate, editTaskEndTime);
+            if (editStartInstant) payload.start_time = editStartInstant;
+            if (editEndInstant) payload.end_time = editEndInstant;
             if (groupId) { payload.group_id = groupId; }
             else { payload.clear_group_id = true; }
 
@@ -1267,6 +1306,7 @@
             document.getElementById('edit-modal-close').addEventListener('click', closeEditTask);
             document.getElementById('edit-modal-backdrop').addEventListener('click', closeEditTask);
             document.getElementById('btn-edit-save').addEventListener('click', saveEditTask);
+            document.getElementById('edit-date-btn').addEventListener('click', openEditDateTimePicker);
             document.getElementById('btn-edit-delete').addEventListener('click', () => {
                 if (editingTaskId) { deleteTask(editingTaskId); closeEditTask(); }
             });
@@ -1314,7 +1354,9 @@
             privateToggle.checked = true;
             taskStartTime = '';
             taskEndTime = '';
+            pickerContext = 'add';
             pickerSelectedDate = new Date(selectedDate);
+            setPickerTimeValues('', '');
             dateText.textContent = formatModalDate(selectedDate);
             clearTitleError();
 
@@ -1368,8 +1410,10 @@
                 reference_links: link ? [link] : []
             };
             if (category && category !== 'default') payload.group_id = category;
-            if (taskStartTime) payload.start_time = taskStartTime + ':00Z';
-            if (taskEndTime) payload.end_time = taskEndTime + ':00Z';
+            const createStartInstant = buildInstantFromDateAndTime(taskDate, taskStartTime);
+            const createEndInstant = buildInstantFromDateAndTime(taskDate, taskEndTime);
+            if (createStartInstant) payload.start_time = createStartInstant;
+            if (createEndInstant) payload.end_time = createEndInstant;
 
             fetch('/api/v1/tasks', {
                 method: 'POST',
@@ -1409,8 +1453,6 @@
 
         function renderTags(tags) {
             const container = document.getElementById('category-chips');
-            const addBtn = document.getElementById('btn-add-tag');
-
             container.querySelectorAll('.tag-item[data-category]').forEach(el => el.remove());
 
             const allTags = [DEFAULT_TAG, ...tags.map((t, i) => ({
@@ -1437,7 +1479,7 @@
                     btn.classList.add('selected');
                 });
 
-                container.insertBefore(btn, addBtn);
+                container.appendChild(btn);
             });
         }
 
@@ -1453,16 +1495,6 @@
 
             document.getElementById('task-title-input').addEventListener('input', () => {
                 if (document.getElementById('task-title-input').value.trim()) clearTitleError();
-            });
-
-            document.getElementById('btn-add-tag').addEventListener('click', () => {
-                const name = prompt('새 태그 이름을 입력하세요:');
-                if (!name || !name.trim()) return;
-                fetch(`${API_BASE}/api/tags`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name: name.trim() })
-                }).then(r => { if (r.ok) fetchTags(); });
             });
 
             document.getElementById('modal-date-display').addEventListener('click', openDateTimePicker);
@@ -1497,13 +1529,28 @@
         }
 
         function openDateTimePicker() {
+            pickerContext = 'add';
             const d = pickerSelectedDate || selectedDate;
             pickerYear = d.getFullYear();
             pickerMonth = d.getMonth();
+            setPickerTimeValues(taskStartTime, taskEndTime);
             renderPickerCalendar();
             validatePickerTime();
             const modal = document.getElementById('datetime-picker-modal');
             modal.classList.remove('hidden');
+        }
+
+        function openEditDateTimePicker() {
+            if (!editingTaskId) return;
+            pickerContext = 'edit';
+            const d = editTaskDate || selectedDate;
+            pickerSelectedDate = new Date(d);
+            pickerYear = d.getFullYear();
+            pickerMonth = d.getMonth();
+            setPickerTimeValues(editTaskStartTime, editTaskEndTime);
+            renderPickerCalendar();
+            validatePickerTime();
+            document.getElementById('datetime-picker-modal').classList.remove('hidden');
         }
 
         function closeDateTimePicker() {
@@ -1582,10 +1629,22 @@
         function confirmDateTimePicker() {
             if (!validatePickerTime()) return;
 
-            taskStartTime = document.getElementById('picker-start-time').value;
-            taskEndTime = document.getElementById('picker-end-time').value;
+            const pickedStart = document.getElementById('picker-start-time').value;
+            const pickedEnd = document.getElementById('picker-end-time').value;
+            const d = pickerSelectedDate || selectedDate;
 
-            const d = pickerSelectedDate;
+            if (pickerContext === 'edit') {
+                editTaskDate = new Date(d);
+                editTaskStartTime = pickedStart;
+                editTaskEndTime = pickedEnd;
+                renderEditDateTimeDisplay();
+                closeDateTimePicker();
+                return;
+            }
+
+            taskStartTime = pickedStart;
+            taskEndTime = pickedEnd;
+
             const startLabel = document.getElementById('picker-start-time').options[document.getElementById('picker-start-time').selectedIndex].text;
             document.getElementById('modal-date-text').textContent = `${formatModalDate(d)} · ${startLabel}`;
 
