@@ -11,6 +11,7 @@ import com.onlogn.onlogn.entity.UserEntity;
 import com.onlogn.onlogn.repository.GroupRepository;
 import com.onlogn.onlogn.repository.TaskRepository;
 import com.onlogn.onlogn.repository.UserRepository;
+import com.onlogn.onlogn.service.BedrockProfileSummaryService;
 import com.onlogn.onlogn.service.BedrockTagExtractor;
 import com.onlogn.onlogn.service.BedrockTagExtractor.ContextTag;
 import com.onlogn.onlogn.service.ProfileService;
@@ -48,17 +49,21 @@ public class ProfileController {
     private final TaskRepository taskRepository;
     private final GroupRepository groupRepository;
     private final BedrockTagExtractor bedrockTagExtractor;
+    private final BedrockProfileSummaryService profileSummaryService;
 
     public ProfileController(ProfileService profileService, TaskService taskService,
                              UserRepository userRepository, TaskRepository taskRepository,
                              GroupRepository groupRepository,
-                             BedrockTagExtractor bedrockTagExtractor) {
+                             BedrockTagExtractor bedrockTagExtractor,
+                             BedrockProfileSummaryService profileSummaryService
+    ) {
         this.profileService = profileService;
         this.taskService = taskService;
         this.userRepository = userRepository;
         this.taskRepository = taskRepository;
         this.groupRepository = groupRepository;
         this.bedrockTagExtractor = bedrockTagExtractor;
+        this.profileSummaryService = profileSummaryService;
     }
 
     public record TaskResponse(
@@ -256,6 +261,48 @@ public class ProfileController {
         List<ContextTag> tags = bedrockTagExtractor.extractTags(todoList);
         return ResponseEntity.ok(DataMetaEnvelope.of(new ContextTagsResponse(tags)));
     }
+
+    public record ProfileSummaryResponse(
+            String summary,
+            @JsonProperty("total_tasks") int totalTasks,
+            @JsonProperty("done_tasks") int doneTasks
+    ) {}
+
+    @GetMapping("/{slug}/summary")
+    @Operation(
+            operationId = "getProfileSummary",
+            summary = "공개 프로필 실행 요약 생성",
+            description = "지정된 slug의 공개 task 기록을 Bedrock AI에 전달하여 채용/협업/포트폴리오용 실행 프로필 요약을 생성한다. 인증 불필요.",
+            security = {},
+            tags = {"profiles"}
+    )
+    @ApiResponse(responseCode = "200", description = "프로필 요약 생성 성공.")
+    @ApiResponse(responseCode = "404", description = "RFC9457 problem details 응답.")
+    public ResponseEntity<DataMetaEnvelope<ProfileSummaryResponse>> getProfileSummary(
+            @Parameter(description = "프로필 slug") @PathVariable String slug) {
+        BedrockProfileSummaryService.ProfileSummary result = profileSummaryService.generateProfileSummary(slug);
+        ProfileSummaryResponse response = new ProfileSummaryResponse(
+                result.summary(), result.totalTasks(), result.doneTasks());
+        return ResponseEntity.ok(DataMetaEnvelope.of(response));
+    }
+
+    @PostMapping("/me/summary")
+    @Operation(
+            operationId = "generateMyProfileSummary",
+            summary = "내 전체 task 기반 개인 실행 요약 생성",
+            description = "인증된 사용자의 전체 task 기록(공개+비공개)을 Bedrock AI에 전달하여 개인용 실행 프로필 요약을 생성한다.",
+            tags = {"profiles"}
+    )
+    @ApiResponse(responseCode = "200", description = "개인 실행 요약 생성 성공.")
+    @ApiResponse(responseCode = "401", description = "RFC9457 problem details 응답.")
+    public ResponseEntity<DataMetaEnvelope<ProfileSummaryResponse>> generateMyProfileSummary() {
+        UUID userId = (UUID) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        BedrockProfileSummaryService.ProfileSummary result = profileSummaryService.generateMyProfileSummary(userId);
+        ProfileSummaryResponse response = new ProfileSummaryResponse(
+                result.summary(), result.totalTasks(), result.doneTasks());
+        return ResponseEntity.ok(DataMetaEnvelope.of(response));
+    }
+
 
     private java.util.Optional<TaskResponse> toPublicTaskResponse(TaskEntity task) {
         String groupName = null;

@@ -5,7 +5,7 @@ import java.time.Instant;
 import java.util.UUID;
 
 @Entity
-@Table(name = "groups")
+@Table(name = "`groups`")
 public class GroupEntity {
 
     @Id
