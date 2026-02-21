@@ -1,0 +1,948 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" class="light" lang="ko">
+<head>
+    <meta charset="utf-8"/>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    <title>O(NlogN) - 대시보드</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@200;300;400;500;600;700&display=swap" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#82ccbd",
+                        "sage-green": "#a7d7cc",
+                        "background-light": "#f6f7f7",
+                        "background-dark": "#151d1c",
+                    },
+                    fontFamily: {
+                        "display": ["IBM Plex Sans", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.5rem",
+                        "lg": "1rem",
+                        "xl": "1.5rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        };
+    </script>
+    <style type="text/tailwindcss">
+        @layer base {
+            body {
+                @apply font-display bg-background-light text-[#111816] dark:bg-background-dark dark:text-[#f6f7f7] antialiased;
+            }
+        }
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 1px;
+            background-color: rgba(130, 204, 189, 0.03);
+            border: 1px solid rgba(130, 204, 189, 0.05);
+            border-radius: 0.5rem;
+            overflow: hidden;
+        }
+        .day-cell {
+            @apply bg-white dark:bg-[#1c2624] min-h-[36px] md:min-h-[42px] p-0.5 md:p-1 transition-all cursor-pointer hover:z-10 relative flex flex-col items-center justify-center border-[0.5px] border-primary/[0.03];
+        }
+        .date-num {
+            @apply text-[9px] md:text-[10px] font-extralight opacity-60;
+        }
+        .day-cell.today .date-num {
+            @apply opacity-100 font-semibold;
+        }
+        .day-cell.today::after {
+            content: '';
+            @apply absolute bottom-1 w-1 h-1 bg-primary rounded-full;
+        }
+        .heat-0 { @apply bg-white dark:bg-[#1c2624]; }
+        .heat-1 { @apply bg-[#f0f9f7] dark:bg-primary/5; }
+        .heat-2 { @apply bg-[#e1f3ef] dark:bg-primary/10; }
+        .heat-3 { @apply bg-[#ccece5] dark:bg-primary/20; }
+        .heat-4 { @apply bg-[#b3e1d6] dark:bg-primary/30; }
+        .heat-5 { @apply bg-[#99d7c9] dark:bg-primary/40; }
+        .task-row {
+            @apply flex items-start gap-4 py-3 px-2 border-b border-gray-100 dark:border-white/5 last:border-0 hover:bg-gray-50/50 dark:hover:bg-white/5 transition-colors;
+        }
+        .category-header {
+            @apply sticky top-0 bg-white/95 dark:bg-[#1c2624]/95 backdrop-blur-sm z-10 py-3 mt-4 first:mt-0 flex items-center justify-between border-b border-primary/10;
+        }
+        .btn-pressed-hover:hover {
+            box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.06);
+        }
+        .reaction-chip {
+            @apply flex items-center gap-1 px-1.5 py-0.5 bg-primary/5 border border-primary/10 rounded-md transition-all hover:bg-primary/10 cursor-pointer;
+        }
+        .week-scroll-container::-webkit-scrollbar {
+            display: none;
+        }
+        .week-scroll-container {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        .chip {
+            @apply flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all cursor-pointer border border-transparent hover:bg-gray-50 dark:hover:bg-white/5 text-gray-500 dark:text-gray-400;
+        }
+        .chip.selected {
+            @apply bg-gray-100 text-gray-900 dark:bg-white/10 dark:text-white font-semibold;
+        }
+        .color-dot {
+            @apply w-2 h-2 rounded-full;
+        }
+        .custom-checkbox {
+            @apply w-6 h-6 border-2 border-gray-300 rounded flex items-center justify-center transition-colors cursor-pointer;
+        }
+        .custom-checkbox:hover {
+            @apply border-primary;
+        }
+        .toggle-checkbox:checked {
+            @apply right-0 border-primary bg-primary;
+        }
+        .toggle-checkbox:checked + .toggle-label {
+            @apply bg-primary/20;
+        }
+        @media (max-width: 768px) {
+            .settings-inner {
+                @apply fixed inset-0 h-full w-full max-w-none rounded-none;
+            }
+        }
+    </style>
+</head>
+<body class="min-h-screen">
+<div class="max-w-[1400px] mx-auto px-4 py-6 md:px-8">
+
+    <nav class="flex items-center justify-between mb-8">
+        <div class="flex items-center gap-2 text-[#111816] dark:text-[#f6f7f7]">
+            <div class="bg-primary p-1.5 rounded-lg flex items-center justify-center">
+                <span class="material-symbols-outlined text-white text-lg" style="font-variation-settings: 'FILL' 1">terminal</span>
+            </div>
+            <span class="text-base font-extrabold tracking-tight">O(NlogN)</span>
+        </div>
+        <div class="flex items-center">
+            <div id="user-avatar" class="size-10 md:size-12 rounded-full overflow-hidden border-2 border-white dark:border-primary/20 shadow-sm bg-primary/10 ring-2 ring-primary/5 transition-all hover:ring-primary/20 cursor-pointer">
+                <img alt="avatar" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDlIxV012rtQSh3c816kig9I1rbZnOaJmHo4nBU18epa_cHJBOc6RIKQrel5uCTlcNcSTueF4n7lQ00MlvOFxCrUlvWhepcY4Zj0o_WbyGjJMcgNheolAZmooM3x0N5zfuQI4cdQymnFkq50O66u5pVYll18Ueyt_dpRHayzgyPlxsiNIuOSpTxOzHITr8dSDi7W9LkBrkHVidABRjBJ3Kh3bBAYoewy4E22WO71VZ9Jbmn6BQLw4nA8-qoh9TmoWGa1K1ULgeX3AwG"/>
+            </div>
+        </div>
+    </nav>
+
+    <header class="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-6">
+        <div class="flex items-center gap-4 md:gap-6">
+            <h1 id="month-title" class="text-xl md:text-3xl font-bold tracking-tight"></h1>
+            <div class="flex gap-2">
+                <button id="btn-prev-month" class="size-8 md:size-9 flex items-center justify-center rounded-lg hover:bg-primary/10 border border-primary/10 transition-all btn-pressed-hover">
+                    <span class="material-symbols-outlined text-lg">chevron_left</span>
+                </button>
+                <button id="btn-next-month" class="size-8 md:size-9 flex items-center justify-center rounded-lg hover:bg-primary/10 border border-primary/10 transition-all btn-pressed-hover">
+                    <span class="material-symbols-outlined text-lg">chevron_right</span>
+                </button>
+            </div>
+            <button id="btn-today" class="hidden sm:block px-6 py-1.5 text-xs font-bold border border-primary/20 rounded-md hover:bg-primary/10 transition-all bg-white/50 btn-pressed-hover">오늘</button>
+        </div>
+        <div class="flex flex-col items-start lg:items-end gap-2">
+            <div class="flex items-center gap-3">
+                <span class="text-[9px] md:text-[10px] font-bold text-primary/70 uppercase tracking-widest">Monthly Goal Completion</span>
+                <span id="monthly-completion-percent" class="text-sm md:text-base font-bold text-primary">0%</span>
+            </div>
+            <div class="h-1.5 w-full md:w-64 bg-primary/10 rounded-full overflow-hidden">
+                <div id="monthly-completion-bar" class="h-full bg-primary w-0 transition-all duration-700 ease-out"></div>
+            </div>
+        </div>
+    </header>
+
+    <div class="lg:hidden mb-8">
+        <div class="overflow-x-auto week-scroll-container">
+            <div id="mobile-week-strip" class="flex gap-2 min-w-max pb-1"></div>
+        </div>
+    </div>
+
+    <div class="flex flex-col lg:grid lg:grid-cols-12 gap-6 md:gap-8">
+
+        <aside class="hidden lg:block lg:col-span-4 xl:col-span-3">
+            <div class="calendar-content sticky top-8">
+                <div class="grid grid-cols-7 mb-2 px-1 text-center">
+                    <div class="text-[9px] font-black text-red-400/80 uppercase tracking-widest py-1">S</div>
+                    <div class="text-[9px] font-black opacity-60 uppercase tracking-widest py-1">M</div>
+                    <div class="text-[9px] font-black opacity-60 uppercase tracking-widest py-1">T</div>
+                    <div class="text-[9px] font-black opacity-60 uppercase tracking-widest py-1">W</div>
+                    <div class="text-[9px] font-black opacity-60 uppercase tracking-widest py-1">T</div>
+                    <div class="text-[9px] font-black opacity-60 uppercase tracking-widest py-1">F</div>
+                    <div class="text-[9px] font-black text-blue-400/80 uppercase tracking-widest py-1">S</div>
+                </div>
+                <div id="calendar-grid" class="calendar-grid shadow-sm mb-3"></div>
+                <div class="flex items-center justify-between px-1 mb-6 lg:mb-0">
+                    <span class="text-[8px] font-bold opacity-30 uppercase tracking-widest">Intensity</span>
+                    <div class="flex gap-1">
+                        <div class="size-1.5 rounded-sm bg-primary/10"></div>
+                        <div class="size-1.5 rounded-sm bg-primary/30"></div>
+                        <div class="size-1.5 rounded-sm bg-primary/50"></div>
+                        <div class="size-1.5 rounded-sm bg-primary/70"></div>
+                        <div class="size-1.5 rounded-sm bg-primary"></div>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <main class="lg:col-span-8 xl:col-span-9">
+            <div class="bg-white dark:bg-[#1c2624] rounded-2xl p-4 md:p-8 border border-primary/10 shadow-sm min-h-full">
+
+                <div class="flex items-center justify-between mb-6 md:mb-8 pb-4 border-b border-primary/5">
+                    <div>
+                        <h2 id="day-title" class="text-lg md:text-2xl font-bold"></h2>
+                        <div class="flex items-center gap-2 mt-1">
+                            <span class="text-xs md:text-sm font-semibold text-primary">오늘의 할 일</span>
+                            <span id="task-progress" class="text-[9px] md:text-[11px] px-2 py-0.5 bg-primary/10 text-primary rounded-full font-bold">0 / 0 완료</span>
+                        </div>
+                    </div>
+                    <button id="btn-add-task" class="size-9 md:size-11 bg-primary text-white rounded-xl flex items-center justify-center hover:bg-primary/90 transition-all shadow-lg shadow-primary/20">
+                        <span class="material-symbols-outlined text-xl md:text-2xl font-bold">add</span>
+                    </button>
+                </div>
+
+                <div id="task-list" class="space-y-1"></div>
+
+                <div id="today-insight" class="mt-8 md:mt-12 p-4 md:p-5 bg-primary/5 rounded-xl border border-primary/10 relative overflow-hidden group">
+                    <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform">
+                        <span class="material-symbols-outlined text-4xl md:text-5xl text-primary">auto_awesome</span>
+                    </div>
+                    <div class="flex items-center gap-2 mb-2">
+                        <span class="material-symbols-outlined text-primary text-base md:text-lg">insights</span>
+                        <span class="text-[9px] md:text-[10px] font-bold text-primary uppercase tracking-widest">Today's Insight</span>
+                    </div>
+                    <p id="insight-text" class="text-[11px] md:text-xs leading-relaxed opacity-60 max-w-2xl"></p>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <footer class="mt-12 md:mt-16 pt-8 border-t border-primary/10 flex flex-col md:flex-row items-center justify-between gap-6 opacity-40">
+        <p class="text-[8px] md:text-[9px] font-bold uppercase tracking-[0.3em] text-center md:text-left">&copy; 2024 O(NlogN). ALL RIGHTS RESERVED.</p>
+        <div class="flex gap-6 md:gap-10">
+            <a class="text-[8px] md:text-[9px] font-bold uppercase tracking-[0.15em] hover:text-primary transition-colors" href="#">Privacy Policy</a>
+            <a class="text-[8px] md:text-[9px] font-bold uppercase tracking-[0.15em] hover:text-primary transition-colors" href="#">Terms of Service</a>
+            <a class="text-[8px] md:text-[9px] font-bold uppercase tracking-[0.15em] hover:text-primary transition-colors" href="#">Support</a>
+        </div>
+    </footer>
+</div>
+
+<div id="add-task-modal" class="hidden fixed inset-0 z-50">
+    <div id="modal-backdrop" class="fixed inset-0 bg-black/40 backdrop-blur-sm"></div>
+    <div class="fixed inset-0 flex items-center justify-center p-4">
+        <div class="relative bg-white dark:bg-[#1c2624] w-full max-w-[580px] rounded-2xl shadow-2xl overflow-hidden p-8 flex flex-col gap-8">
+            <button id="modal-close" class="absolute top-4 right-4 z-20 size-8 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-white/10 cursor-pointer transition-colors text-gray-400 hover:text-gray-600">
+                <span class="material-symbols-outlined text-xl">close</span>
+            </button>
+
+            <div class="flex items-start gap-4 mt-2">
+                <button class="custom-checkbox shrink-0 mt-1.5 text-transparent hover:text-primary/20">
+                    <span class="material-symbols-outlined text-lg">check</span>
+                </button>
+                <div class="flex-1">
+                    <input id="task-title-input" autofocus class="w-full text-2xl font-bold bg-transparent border-none placeholder-gray-300 focus:ring-0 p-0 text-gray-800 dark:text-white" placeholder="무엇을 할 건가요?" type="text"/>
+                </div>
+            </div>
+
+            <div id="category-chips" class="flex flex-wrap gap-1 pl-10">
+                <button class="chip selected" data-category="dev">
+                    <span class="color-dot bg-emerald-400 shadow-sm shadow-emerald-400/50"></span>
+                    개발
+                </button>
+                <button class="chip" data-category="design">
+                    <span class="color-dot bg-orange-400"></span>
+                    디자인
+                </button>
+                <button class="chip" data-category="meeting">
+                    <span class="color-dot bg-blue-400"></span>
+                    미팅
+                </button>
+                <button class="chip" data-category="planning">
+                    <span class="color-dot bg-purple-400"></span>
+                    기획
+                </button>
+            </div>
+
+            <div class="flex flex-col gap-5 border-t border-gray-100 dark:border-white/5 pt-6">
+                <div class="flex items-center gap-3">
+                    <div class="flex items-center justify-center w-8 h-8 rounded-full bg-gray-50 text-gray-400 dark:bg-white/5">
+                        <span class="material-symbols-outlined text-lg">calendar_today</span>
+                    </div>
+                    <button id="modal-date-display" class="flex items-center gap-2 px-3 py-1.5 bg-gray-50 hover:bg-gray-100 dark:bg-white/5 dark:hover:bg-white/10 rounded-lg text-sm text-gray-600 dark:text-gray-300 transition-colors">
+                        <span id="modal-date-text">오늘</span>
+                    </button>
+                </div>
+
+                <div class="flex items-center justify-between w-full">
+                    <div class="flex items-center gap-3">
+                        <div class="flex items-center justify-center w-8 h-8 rounded-full bg-gray-50 text-gray-400 dark:bg-white/5">
+                            <span class="material-symbols-outlined text-lg">lock</span>
+                        </div>
+                        <span class="text-sm text-gray-600 dark:text-gray-300">비공개</span>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input id="task-private-toggle" checked type="checkbox" class="sr-only peer"/>
+                        <div class="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary"></div>
+                    </label>
+                </div>
+
+                <div class="flex items-center gap-3">
+                    <div class="flex items-center justify-center w-8 h-8 rounded-full bg-gray-50 text-gray-400 dark:bg-white/5 shrink-0">
+                        <span class="material-symbols-outlined text-lg rotate-45">link</span>
+                    </div>
+                    <div class="flex-1 relative group">
+                        <input id="task-link-input" class="w-full bg-transparent border-none border-b border-gray-200 dark:border-gray-700 focus:border-transparent px-0 py-2 text-sm outline-none focus:ring-0 placeholder-gray-400 dark:placeholder-gray-500 transition-colors text-gray-700 dark:text-gray-200" placeholder="관련 링크 추가 (선택사항)" type="url"/>
+                        <div class="absolute bottom-0 left-0 w-0 h-[1px] bg-primary transition-all duration-300 group-focus-within:w-full"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-4">
+                <button id="btn-save-task" class="w-full bg-primary hover:bg-[#72b9ab] text-white font-bold py-3.5 rounded-xl shadow-sm hover:shadow-md transition-all flex items-center justify-center gap-2 active:scale-[0.99]">
+                    저장
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="settings-modal" class="hidden fixed inset-0 z-[100] items-center justify-center p-0 md:p-4">
+    <div id="settings-backdrop" class="absolute inset-0 bg-black/40 backdrop-blur-sm"></div>
+    <div class="modal-container relative bg-white dark:bg-[#1c2624] w-full max-w-[680px] h-full md:h-[520px] md:rounded-2xl shadow-2xl overflow-hidden flex flex-col md:flex-row settings-inner mx-auto my-auto">
+        <button id="settings-close" class="absolute top-4 right-4 z-20 size-8 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-white/10 cursor-pointer transition-colors">
+            <span class="material-symbols-outlined text-xl opacity-40">close</span>
+        </button>
+
+        <aside class="w-full md:w-[160px] bg-[#F5F5F0] dark:bg-white/5 border-r border-black/5 flex flex-col pt-12 md:pt-6 pb-4 px-3 gap-1 shrink-0">
+            <button data-settings-tab="profile" class="settings-tab-btn flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all cursor-pointer hover:bg-white/50 dark:hover:bg-white/10 bg-primary/20 text-primary font-bold">
+                <span class="material-symbols-outlined text-[18px]">person</span>
+                <span>프로필</span>
+            </button>
+            <button data-settings-tab="groups" class="settings-tab-btn flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all cursor-pointer hover:bg-white/50 dark:hover:bg-white/10">
+                <span class="material-symbols-outlined text-[18px]">label</span>
+                <span>그룹 관리</span>
+            </button>
+            <div class="mt-auto pt-4 border-t border-black/5">
+                <button id="btn-logout" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-red-400 hover:bg-red-50 dark:hover:bg-red-400/10 transition-all">
+                    <span class="material-symbols-outlined text-[18px]">logout</span>
+                    <span>로그아웃</span>
+                </button>
+            </div>
+        </aside>
+
+        <main class="flex-1 bg-white dark:bg-[#1c2624] overflow-y-auto p-6 md:p-8">
+            <div id="settings-tab-profile" class="settings-tab-content">
+                <h3 class="text-lg font-bold mb-6">프로필 설정</h3>
+                <div class="flex flex-col gap-6">
+                    <div class="flex items-center gap-4">
+                        <div class="size-16 rounded-full overflow-hidden border-2 border-primary/20 bg-primary/5 shrink-0">
+                            <img id="settings-avatar" alt="Profile" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDlIxV012rtQSh3c816kig9I1rbZnOaJmHo4nBU18epa_cHJBOc6RIKQrel5uCTlcNcSTueF4n7lQ00MlvOFxCrUlvWhepcY4Zj0o_WbyGjJMcgNheolAZmooM3x0N5zfuQI4cdQymnFkq50O66u5pVYll18Ueyt_dpRHayzgyPlxsiNIuOSpTxOzHITr8dSDi7W9LkBrkHVidABRjBJ3Kh3bBAYoewy4E22WO71VZ9Jbmn6BQLw4nA8-qoh9TmoWGa1K1ULgeX3AwG"/>
+                        </div>
+                        <div class="flex flex-col">
+                            <div class="flex items-center gap-1.5">
+                                <span id="settings-name" class="font-bold text-base"></span>
+                                <span id="settings-username" class="text-xs opacity-50"></span>
+                            </div>
+                            <a id="settings-profile-link" class="text-xs text-primary hover:underline mt-1" href="#" target="_blank">내 공개 프로필 보기</a>
+                        </div>
+                    </div>
+
+                    <div class="space-y-4">
+                        <div class="relative">
+                            <label class="block text-xs font-bold opacity-60 uppercase tracking-widest mb-1.5">바이오</label>
+                            <textarea id="settings-bio" class="w-full h-20 bg-[#F5F5F0]/50 dark:bg-white/5 border border-primary/10 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all resize-none" maxlength="100" placeholder="간단한 소개를 입력하세요"></textarea>
+                            <span id="settings-bio-count" class="absolute bottom-2.5 right-4 text-[10px] opacity-40">0 / 100</span>
+                        </div>
+                        <div class="flex flex-col gap-1">
+                            <div class="flex items-center justify-between py-1">
+                                <div class="flex items-center gap-2">
+                                    <span class="text-sm">🌐 내 프로필을 공개합니다</span>
+                                </div>
+                                <div class="relative inline-block w-10 mr-2 align-middle select-none">
+                                    <input id="settings-public-toggle" class="toggle-checkbox absolute block w-5 h-5 rounded-full bg-white border-4 appearance-none cursor-pointer transition-all duration-300 ease-in outline-none border-gray-300 right-5" type="checkbox" checked/>
+                                    <label class="toggle-label block overflow-hidden h-5 rounded-full bg-gray-300 cursor-pointer transition-all duration-300 ease-in" for="settings-public-toggle"></label>
+                                </div>
+                            </div>
+                            <p class="text-[11px] opacity-50">비공개 시 퍼블릭 프로필 페이지 접근 불가</p>
+                        </div>
+                    </div>
+
+                    <div class="mt-2">
+                        <button id="btn-save-profile" class="w-full bg-primary text-white font-bold py-3.5 rounded-xl hover:bg-primary/90 transition-all shadow-lg shadow-primary/10 disabled:opacity-50 disabled:shadow-none disabled:cursor-not-allowed" disabled>변경 사항 저장</button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="settings-tab-groups" class="settings-tab-content hidden">
+                <div class="flex items-center justify-between mb-6">
+                    <h3 class="text-lg font-bold">그룹 관리</h3>
+                    <button id="btn-add-group" class="text-xs font-bold text-primary flex items-center gap-1 hover:underline">
+                        <span class="material-symbols-outlined text-sm">add_circle</span>
+                        새 그룹 추가
+                    </button>
+                </div>
+                <div id="group-list" class="space-y-3"></div>
+            </div>
+        </main>
+    </div>
+</div>
+
+<div id="logout-confirm-popup" class="hidden fixed inset-0 z-[120] items-center justify-center p-4">
+    <div id="logout-confirm-backdrop" class="absolute inset-0 bg-black/60 backdrop-blur-[2px]"></div>
+    <div class="relative bg-white dark:bg-[#1c2624] w-full max-w-[320px] p-8 rounded-[1.5rem] shadow-2xl flex flex-col items-center gap-8 mx-auto my-auto">
+        <div class="flex flex-col items-center gap-2">
+            <span class="material-symbols-outlined text-primary text-3xl opacity-80">logout</span>
+            <p class="text-[17px] font-semibold text-center mt-2">로그아웃 하시겠습니까?</p>
+        </div>
+        <div class="flex flex-col w-full gap-3">
+            <button id="btn-logout-confirm" class="w-full py-3.5 bg-primary text-white text-[15px] font-bold rounded-xl hover:bg-[#72b9ab] transition-all shadow-lg shadow-primary/10">
+                로그아웃
+            </button>
+            <button id="btn-logout-cancel" class="w-full py-2.5 text-center text-[14px] font-medium text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 cursor-pointer transition-colors">
+                취소
+            </button>
+        </div>
+    </div>
+</div>
+
+<script th:inline="javascript">
+    const API_BASE = /*[[${apiBase}]]*/ '';
+</script>
+<script>
+    (function () {
+        const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'];
+        const HEAT_CLASSES = ['heat-0', 'heat-1', 'heat-2', 'heat-3', 'heat-4', 'heat-5'];
+        const CATEGORY_COLORS = {
+            morning:   { dot: 'bg-orange-400', label: 'text-orange-400', labelBg: 'text-orange-400/40 bg-orange-400/5' },
+            work:      { dot: 'bg-blue-400',   label: 'text-blue-400',   labelBg: 'text-blue-400/40 bg-blue-400/5' },
+            personal:  { dot: 'bg-purple-400', label: 'text-purple-400', labelBg: 'text-purple-400/40 bg-purple-400/5' },
+            'default': { dot: 'bg-primary',    label: 'text-primary',    labelBg: 'text-primary/40 bg-primary/5' }
+        };
+
+        let currentYear, currentMonth, selectedDate;
+
+        function init() {
+            const now = new Date();
+            currentYear = now.getFullYear();
+            currentMonth = now.getMonth();
+            selectedDate = now;
+
+            document.getElementById('btn-prev-month').addEventListener('click', () => changeMonth(-1));
+            document.getElementById('btn-next-month').addEventListener('click', () => changeMonth(1));
+            document.getElementById('btn-today').addEventListener('click', goToday);
+            document.getElementById('btn-add-task').addEventListener('click', openAddTask);
+            initModal();
+            initSettings();
+
+            render();
+            fetchTasks(selectedDate);
+        }
+
+        function changeMonth(delta) {
+            currentMonth += delta;
+            if (currentMonth > 11) { currentMonth = 0; currentYear++; }
+            if (currentMonth < 0)  { currentMonth = 11; currentYear--; }
+            render();
+        }
+
+        function goToday() {
+            const now = new Date();
+            currentYear = now.getFullYear();
+            currentMonth = now.getMonth();
+            selectedDate = now;
+            render();
+            fetchTasks(selectedDate);
+        }
+
+        function render() {
+            renderMonthTitle();
+            renderDayTitle();
+            renderCalendar();
+            renderMobileWeek();
+            fetchMonthlyStats();
+        }
+
+        function renderMonthTitle() {
+            document.getElementById('month-title').textContent = `${currentYear}년 ${currentMonth + 1}월`;
+        }
+
+        function renderDayTitle() {
+            const d = selectedDate;
+            document.getElementById('day-title').textContent =
+                `${d.getMonth() + 1}월 ${d.getDate()}일 ${DAY_NAMES[d.getDay()]}요일`;
+        }
+
+        function renderCalendar() {
+            const grid = document.getElementById('calendar-grid');
+            grid.innerHTML = '';
+            const firstDay = new Date(currentYear, currentMonth, 1).getDay();
+            const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+            const prevDays = new Date(currentYear, currentMonth, 0).getDate();
+            const today = new Date();
+
+            for (let i = firstDay - 1; i >= 0; i--) {
+                grid.appendChild(createDayCell(prevDays - i, true));
+            }
+            for (let d = 1; d <= daysInMonth; d++) {
+                const isToday = today.getFullYear() === currentYear && today.getMonth() === currentMonth && today.getDate() === d;
+                const cell = createDayCell(d, false, isToday);
+                cell.addEventListener('click', () => selectDate(d));
+                grid.appendChild(cell);
+            }
+            const remaining = 7 - ((firstDay + daysInMonth) % 7);
+            if (remaining < 7) {
+                for (let d = 1; d <= remaining; d++) {
+                    grid.appendChild(createDayCell(d, true));
+                }
+            }
+        }
+
+        function createDayCell(day, faded, isToday) {
+            const cell = document.createElement('div');
+            const isSelected = !faded && selectedDate.getFullYear() === currentYear && selectedDate.getMonth() === currentMonth && selectedDate.getDate() === day;
+            cell.className = `day-cell ${HEAT_CLASSES[0]}`
+                + (faded ? ' opacity-20 bg-gray-50/50' : '')
+                + (isToday ? ' today' : '')
+                + (isSelected ? ' ring-2 ring-primary ring-inset' : '');
+            const span = document.createElement('span');
+            span.className = 'date-num' + (isToday ? ' text-primary' : '') + (isSelected ? ' !font-bold !opacity-100' : '');
+            span.textContent = day;
+            cell.appendChild(span);
+            cell.dataset.day = day;
+            return cell;
+        }
+
+        function selectDate(day) {
+            selectedDate = new Date(currentYear, currentMonth, day);
+            render();
+            fetchTasks(selectedDate);
+        }
+
+        function renderMobileWeek() {
+            const strip = document.getElementById('mobile-week-strip');
+            strip.innerHTML = '';
+            const d = new Date(selectedDate);
+            const dayOfWeek = d.getDay();
+            d.setDate(d.getDate() - dayOfWeek);
+
+            for (let i = 0; i < 11; i++) {
+                const current = new Date(d);
+                current.setDate(d.getDate() + i);
+                const isSelected = current.toDateString() === selectedDate.toDateString();
+                const isSun = current.getDay() === 0;
+                const isSat = current.getDay() === 6;
+
+                const btn = document.createElement('div');
+                btn.className = isSelected
+                    ? 'flex flex-col items-center gap-0.5 p-2 rounded-xl bg-primary text-white border border-primary w-14 shadow-md shadow-primary/20 ring-2 ring-primary/20'
+                    : 'flex flex-col items-center gap-0.5 p-2 rounded-xl bg-white/50 border border-primary/10 w-14 transition-all active:scale-95';
+
+                const dayLabel = document.createElement('span');
+                dayLabel.className = 'text-[9px] font-bold' + (isSelected ? ' opacity-80' : (isSun ? ' text-red-400 opacity-40' : (isSat ? ' text-blue-400 opacity-40' : ' opacity-40')));
+                dayLabel.textContent = DAY_NAMES[current.getDay()];
+
+                const dateLabel = document.createElement('span');
+                dateLabel.className = 'text-xs font-bold' + (!isSelected && isSun ? ' text-red-400' : '') + (!isSelected && isSat ? ' text-blue-400' : '');
+                dateLabel.textContent = current.getDate();
+
+                btn.appendChild(dayLabel);
+                btn.appendChild(dateLabel);
+                btn.addEventListener('click', () => {
+                    selectedDate = current;
+                    currentYear = current.getFullYear();
+                    currentMonth = current.getMonth();
+                    render();
+                    fetchTasks(current);
+                });
+                strip.appendChild(btn);
+            }
+        }
+
+        function fetchTasks(date) {
+            const dateStr = formatDate(date);
+            fetch(`${API_BASE}/api/tasks?date=${dateStr}`)
+                .then(r => r.ok ? r.json() : [])
+                .then(tasks => renderTasks(tasks))
+                .catch(() => renderTasks([]));
+        }
+
+        function fetchMonthlyStats() {
+            const from = formatDate(new Date(currentYear, currentMonth, 1));
+            const to = formatDate(new Date(currentYear, currentMonth + 1, 0));
+            fetch(`${API_BASE}/api/tasks/stats?from=${from}&to=${to}`)
+                .then(r => r.ok ? r.json() : { completionRate: 0, heatmap: {} })
+                .then(stats => {
+                    const pct = Math.round(stats.completionRate || 0);
+                    document.getElementById('monthly-completion-percent').textContent = pct + '%';
+                    document.getElementById('monthly-completion-bar').style.width = pct + '%';
+                    if (stats.heatmap) applyHeatmap(stats.heatmap);
+                })
+                .catch(() => {});
+        }
+
+        function applyHeatmap(heatmap) {
+            document.querySelectorAll('#calendar-grid .day-cell:not(.opacity-20)').forEach(cell => {
+                const day = parseInt(cell.dataset.day);
+                if (!day) return;
+                const dateStr = formatDate(new Date(currentYear, currentMonth, day));
+                const level = Math.min(heatmap[dateStr] || 0, 5);
+                HEAT_CLASSES.forEach(c => cell.classList.remove(c));
+                cell.classList.add(HEAT_CLASSES[level]);
+            });
+        }
+
+        function renderTasks(tasks) {
+            const list = document.getElementById('task-list');
+            list.innerHTML = '';
+
+            const completed = tasks.filter(t => t.completed).length;
+            document.getElementById('task-progress').textContent = `${completed} / ${tasks.length} 완료`;
+
+            const grouped = {};
+            tasks.forEach(t => {
+                const cat = t.category || 'default';
+                if (!grouped[cat]) grouped[cat] = [];
+                grouped[cat].push(t);
+            });
+
+            if (Object.keys(grouped).length === 0) {
+                list.innerHTML = '<div class="py-16 text-center text-sm opacity-40">등록된 할 일이 없습니다</div>';
+                return;
+            }
+
+            Object.entries(grouped).forEach(([cat, items]) => {
+                const colors = CATEGORY_COLORS[cat] || CATEGORY_COLORS['default'];
+
+                const header = document.createElement('div');
+                header.className = 'category-header';
+                header.innerHTML = `
+                    <div class="flex items-center gap-2">
+                        <span class="size-1.5 ${colors.dot} rounded-full"></span>
+                        <span class="text-[9px] md:text-[10px] font-bold ${colors.label} uppercase tracking-widest">${escapeHtml(cat)}</span>
+                    </div>
+                    <span class="text-[9px] md:text-[10px] opacity-40 font-bold">${items.length} TASKS</span>`;
+                list.appendChild(header);
+
+                items.forEach(task => list.appendChild(createTaskRow(task, colors)));
+            });
+        }
+
+        function createTaskRow(task, colors) {
+            const row = document.createElement('div');
+            const isHighlighted = task.highlighted;
+            row.className = 'task-row' + (isHighlighted ? ' bg-primary/5 rounded-lg border-l-4 border-l-primary px-3 md:px-4' : '');
+
+            const checkEl = task.completed
+                ? `<span class="material-symbols-outlined text-primary text-lg md:text-xl mt-0.5 cursor-pointer" data-task-id="${task.id}" data-action="toggle">check_circle</span>`
+                : `<div class="size-4 md:size-5 rounded border-2 ${isHighlighted ? 'border-primary/50' : 'border-primary/30'} flex items-center justify-center mt-1 cursor-pointer" data-task-id="${task.id}" data-action="toggle"></div>`;
+
+            const titleClass = task.completed ? 'line-through opacity-30' : (isHighlighted ? 'font-bold' : '');
+
+            let metaHtml = '';
+            if (task.time) {
+                metaHtml += `<div class="flex items-center gap-3 mt-1">
+                    <span class="text-[10px] md:text-[11px] font-medium opacity-50 flex items-center gap-1">
+                        <span class="material-symbols-outlined text-[12px] md:text-[13px]">schedule</span>${escapeHtml(task.time)}
+                    </span></div>`;
+            }
+            if (task.link) {
+                metaHtml += `<div class="flex items-center gap-1 mt-1 pl-1">
+                    <span class="material-symbols-outlined text-[11px] md:text-[12px] opacity-60">link</span>
+                    <a class="text-[11px] md:text-xs opacity-60 hover:opacity-100 hover:text-primary transition-all truncate max-w-[150px] md:max-w-none" href="${escapeHtml(task.link)}">${escapeHtml(task.link)}</a>
+                </div>`;
+            }
+
+            let reactionsHtml = '';
+            if (task.reactions && task.reactions.length > 0) {
+                reactionsHtml = '<div class="flex items-center gap-1.5 mt-2 ml-1">' +
+                    task.reactions.map(r => `<div class="reaction-chip"><span class="text-[10px] md:text-[11px]">${r.emoji}</span><span class="text-[8px] md:text-[9px] font-bold opacity-60">${r.count}</span></div>`).join('') +
+                    '</div>';
+            }
+
+            const tagLabel = task.tag
+                ? `<span class="text-[8px] md:text-[9px] font-bold ${colors.labelBg} uppercase px-1.5 md:px-2 py-0.5 rounded">${escapeHtml(task.tag)}</span>`
+                : '';
+
+            row.innerHTML = `
+                ${checkEl}
+                <div class="flex-1">
+                    <p class="text-[13px] md:text-[14px] font-medium ${titleClass}">${escapeHtml(task.title)}</p>
+                    ${metaHtml}${reactionsHtml}
+                </div>
+                ${tagLabel}`;
+
+            row.querySelectorAll('[data-action="toggle"]').forEach(el => {
+                el.addEventListener('click', () => toggleTask(task.id));
+            });
+
+            return row;
+        }
+
+        function toggleTask(taskId) {
+            fetch(`${API_BASE}/api/tasks/${taskId}/toggle`, { method: 'PATCH' })
+                .then(r => { if (r.ok) { fetchTasks(selectedDate); fetchMonthlyStats(); } });
+        }
+
+        function openAddTask() {
+            const modal = document.getElementById('add-task-modal');
+            const titleInput = document.getElementById('task-title-input');
+            const linkInput = document.getElementById('task-link-input');
+            const dateText = document.getElementById('modal-date-text');
+            const privateToggle = document.getElementById('task-private-toggle');
+
+            titleInput.value = '';
+            linkInput.value = '';
+            privateToggle.checked = true;
+            dateText.textContent = formatModalDate(selectedDate);
+
+            document.querySelectorAll('#category-chips .chip').forEach((chip, i) => {
+                chip.classList.toggle('selected', i === 0);
+            });
+
+            modal.classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+            setTimeout(() => titleInput.focus(), 100);
+        }
+
+        function closeAddTask() {
+            document.getElementById('add-task-modal').classList.add('hidden');
+            document.body.style.overflow = '';
+        }
+
+        function getSelectedCategory() {
+            const sel = document.querySelector('#category-chips .chip.selected');
+            return sel ? sel.dataset.category : 'dev';
+        }
+
+        function saveTask() {
+            const title = document.getElementById('task-title-input').value.trim();
+            if (!title) {
+                document.getElementById('task-title-input').focus();
+                return;
+            }
+            const link = document.getElementById('task-link-input').value.trim();
+            const isPrivate = document.getElementById('task-private-toggle').checked;
+            const category = getSelectedCategory();
+
+            fetch(`${API_BASE}/api/tasks`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    title: title,
+                    date: formatDate(selectedDate),
+                    category: category,
+                    link: link || null,
+                    isPrivate: isPrivate
+                })
+            }).then(r => {
+                if (r.ok) {
+                    closeAddTask();
+                    fetchTasks(selectedDate);
+                    fetchMonthlyStats();
+                }
+            });
+        }
+
+        function formatModalDate(d) {
+            const today = new Date();
+            if (d.toDateString() === today.toDateString()) return '오늘';
+            return `${d.getMonth() + 1}월 ${d.getDate()}일`;
+        }
+
+        function initModal() {
+            document.getElementById('modal-close').addEventListener('click', closeAddTask);
+            document.getElementById('modal-backdrop').addEventListener('click', closeAddTask);
+            document.getElementById('btn-save-task').addEventListener('click', saveTask);
+
+            document.getElementById('task-title-input').addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') saveTask();
+                if (e.key === 'Escape') closeAddTask();
+            });
+
+            document.querySelectorAll('#category-chips .chip').forEach(chip => {
+                chip.addEventListener('click', () => {
+                    document.querySelectorAll('#category-chips .chip').forEach(c => c.classList.remove('selected'));
+                    chip.classList.add('selected');
+                });
+            });
+        }
+
+        function initSettings() {
+            document.getElementById('user-avatar').addEventListener('click', openSettings);
+            document.getElementById('settings-close').addEventListener('click', closeSettings);
+            document.getElementById('settings-backdrop').addEventListener('click', closeSettings);
+
+            document.querySelectorAll('.settings-tab-btn').forEach(btn => {
+                btn.addEventListener('click', () => switchSettingsTab(btn.dataset.settingsTab));
+            });
+
+            const bio = document.getElementById('settings-bio');
+            const saveBtn = document.getElementById('btn-save-profile');
+            const publicToggle = document.getElementById('settings-public-toggle');
+
+            let initialBio = '', initialPublic = true;
+
+            bio.addEventListener('input', () => {
+                document.getElementById('settings-bio-count').textContent = bio.value.length + ' / 100';
+                saveBtn.disabled = (bio.value === initialBio && publicToggle.checked === initialPublic);
+            });
+
+            publicToggle.addEventListener('change', () => {
+                saveBtn.disabled = (bio.value === initialBio && publicToggle.checked === initialPublic);
+            });
+
+            saveBtn.addEventListener('click', () => {
+                fetch(`${API_BASE}/api/profile`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        bio: bio.value,
+                        isPublic: publicToggle.checked
+                    })
+                }).then(r => {
+                    if (r.ok) {
+                        initialBio = bio.value;
+                        initialPublic = publicToggle.checked;
+                        saveBtn.disabled = true;
+                    }
+                });
+            });
+
+            document.getElementById('btn-logout').addEventListener('click', openLogoutConfirm);
+
+            document.getElementById('btn-add-group').addEventListener('click', () => {
+                const name = prompt('새 그룹 이름을 입력하세요:');
+                if (!name || !name.trim()) return;
+                fetch(`${API_BASE}/api/groups`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: name.trim() })
+                }).then(r => { if (r.ok) fetchGroups(); });
+            });
+
+            window._settingsInitialState = { getBio: () => initialBio, setBio: v => initialBio = v, getPublic: () => initialPublic, setPublic: v => initialPublic = v };
+        }
+
+        function openLogoutConfirm() {
+            const popup = document.getElementById('logout-confirm-popup');
+            popup.classList.remove('hidden');
+            popup.style.display = 'flex';
+        }
+
+        function closeLogoutConfirm() {
+            const popup = document.getElementById('logout-confirm-popup');
+            popup.classList.add('hidden');
+            popup.style.display = '';
+        }
+
+        (function initLogoutConfirm() {
+            document.getElementById('btn-logout-confirm').addEventListener('click', () => {
+                window.location.href = `${API_BASE}/logout`;
+            });
+            document.getElementById('btn-logout-cancel').addEventListener('click', closeLogoutConfirm);
+            document.getElementById('logout-confirm-backdrop').addEventListener('click', closeLogoutConfirm);
+        })();
+
+        function openSettings() {
+            const modal = document.getElementById('settings-modal');
+            modal.classList.remove('hidden');
+            modal.style.display = 'flex';
+            document.body.style.overflow = 'hidden';
+            switchSettingsTab('profile');
+            fetchProfile();
+            fetchGroups();
+        }
+
+        function closeSettings() {
+            const modal = document.getElementById('settings-modal');
+            modal.classList.add('hidden');
+            modal.style.display = '';
+            document.body.style.overflow = '';
+        }
+
+        function switchSettingsTab(tab) {
+            document.querySelectorAll('.settings-tab-btn').forEach(btn => {
+                const isActive = btn.dataset.settingsTab === tab;
+                btn.classList.toggle('bg-primary/20', isActive);
+                btn.classList.toggle('text-primary', isActive);
+                btn.classList.toggle('font-bold', isActive);
+            });
+            document.querySelectorAll('.settings-tab-content').forEach(content => {
+                content.classList.add('hidden');
+            });
+            const target = document.getElementById('settings-tab-' + tab);
+            if (target) target.classList.remove('hidden');
+        }
+
+        function fetchProfile() {
+            fetch(`${API_BASE}/api/profile`)
+                .then(r => r.ok ? r.json() : null)
+                .then(profile => {
+                    if (!profile) return;
+                    document.getElementById('settings-name').textContent = profile.name || '';
+                    document.getElementById('settings-username').textContent = profile.username ? '@' + profile.username : '';
+                    if (profile.avatarUrl) document.getElementById('settings-avatar').src = profile.avatarUrl;
+                    if (profile.profileUrl) document.getElementById('settings-profile-link').href = profile.profileUrl;
+
+                    const bio = document.getElementById('settings-bio');
+                    bio.value = profile.bio || '';
+                    document.getElementById('settings-bio-count').textContent = bio.value.length + ' / 100';
+                    document.getElementById('settings-public-toggle').checked = profile.isPublic !== false;
+                    document.getElementById('btn-save-profile').disabled = true;
+
+                    if (window._settingsInitialState) {
+                        window._settingsInitialState.setBio(bio.value);
+                        window._settingsInitialState.setPublic(profile.isPublic !== false);
+                    }
+                })
+                .catch(() => {});
+        }
+
+        function fetchGroups() {
+            fetch(`${API_BASE}/api/groups`)
+                .then(r => r.ok ? r.json() : [])
+                .then(groups => renderGroups(groups))
+                .catch(() => renderGroups([]));
+        }
+
+        function renderGroups(groups) {
+            const list = document.getElementById('group-list');
+            if (groups.length === 0) {
+                list.innerHTML = '<div class="py-8 text-center text-sm opacity-40">등록된 그룹이 없습니다</div>';
+                return;
+            }
+            list.innerHTML = groups.map(g => `
+                <div class="flex items-center justify-between p-4 bg-[#F5F5F0]/30 dark:bg-white/5 rounded-xl border border-primary/5 hover:border-primary/20 transition-all group">
+                    <div class="flex items-center gap-3">
+                        <span class="size-3 rounded-full" style="background-color: ${escapeHtml(g.color || '#82ccbd')}"></span>
+                        <span class="text-sm font-medium">${escapeHtml(g.name)}</span>
+                    </div>
+                    <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button onclick="deleteGroup('${g.id}')" class="size-8 flex items-center justify-center rounded-lg hover:bg-white dark:hover:bg-white/10 text-gray-400 hover:text-red-400 transition-all">
+                            <span class="material-symbols-outlined text-[18px]">delete</span>
+                        </button>
+                    </div>
+                </div>`).join('');
+        }
+
+        function deleteGroup(groupId) {
+            fetch(`${API_BASE}/api/groups/${groupId}`, { method: 'DELETE' })
+                .then(r => { if (r.ok) fetchGroups(); });
+        }
+
+        function formatDate(d) {
+            return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+        }
+
+        function escapeHtml(str) {
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        }
+
+        document.addEventListener('DOMContentLoaded', init);
+    })();
+</script>
+</body>
+</html>
