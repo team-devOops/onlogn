@@ -939,7 +939,7 @@
 
         function deleteTask(taskId) {
             fetch(`/api/v1/tasks/${taskId}`, { method: 'DELETE', headers: authHeaders() })
-                .then(() => { fetchTasks(selectedDate); fetchMonthlyStats(); })
+                .then(() => { fetchTasks(selectedDate); render(); })
                 .catch(() => {});
         }
 
@@ -1020,7 +1020,7 @@
                         body: JSON.stringify({ status: newStatus })
                     });
                 })
-                .then(r => { if (r && r.ok) { fetchTasks(selectedDate); fetchMonthlyStats(); } })
+                .then(r => { if (r && r.ok) { fetchTasks(selectedDate); render(); } })
                 .catch(() => {});
         }
 
