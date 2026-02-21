@@ -111,6 +111,18 @@
                 @apply fixed inset-0 h-full w-full max-w-none rounded-none;
             }
         }
+        .group-toggle-checkbox:checked + .group-toggle-label {
+            @apply bg-primary;
+        }
+        .group-toggle-checkbox:checked + .group-toggle-label .toggle-dot {
+            @apply translate-x-4;
+        }
+        .color-picker-popup {
+            display: none;
+        }
+        .color-picker-popup.active {
+            display: flex;
+        }
         .calendar-grid-picker {
             display: grid;
             grid-template-columns: repeat(7, 1fr);
@@ -397,14 +409,21 @@
             </div>
 
             <div id="settings-tab-groups" class="settings-tab-content hidden">
-                <div class="flex items-center justify-between mb-6">
-                    <h3 class="text-lg font-bold">그룹 관리</h3>
-                    <button id="btn-add-group" class="text-xs font-bold text-primary flex items-center gap-1 hover:underline">
-                        <span class="material-symbols-outlined text-sm">add_circle</span>
+                <h3 class="text-xl font-bold mb-8">그룹 관리</h3>
+                <div class="flex items-center px-3 mb-2 opacity-30 text-[11px] font-bold">
+                    <div class="w-[24px]"></div>
+                    <div class="w-[12px] mr-3"></div>
+                    <span class="flex-1">그룹 이름</span>
+                    <div class="w-9 text-center">공개</div>
+                    <div class="w-[28px] ml-2"></div>
+                </div>
+                <div id="group-list" class="space-y-2"></div>
+                <div class="mt-6 px-3">
+                    <button id="btn-add-group" class="text-sm font-bold text-primary flex items-center gap-2 hover:opacity-80 transition-opacity">
+                        <span class="material-symbols-outlined text-[18px]">add_circle</span>
                         새 그룹 추가
                     </button>
                 </div>
-                <div id="group-list" class="space-y-3"></div>
             </div>
         </main>
     </div>
@@ -1060,11 +1079,19 @@
             document.getElementById('btn-add-group').addEventListener('click', () => {
                 const name = prompt('새 그룹 이름을 입력하세요:');
                 if (!name || !name.trim()) return;
+                const color = GROUP_COLOR_OPTIONS[currentGroups.length % GROUP_COLOR_OPTIONS.length];
+                const newGroup = { id: 'g' + Date.now(), name: name.trim(), color: color, visibility: 'public' };
                 fetch(`${API_BASE}/api/groups`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name: name.trim() })
-                }).then(r => { if (r.ok) fetchGroups(); });
+                    body: JSON.stringify({ name: name.trim(), color: color })
+                }).then(r => r.ok ? r.json() : null)
+                  .then(data => {
+                      if (data && data.data) { currentGroups.push(data.data); }
+                      else { currentGroups.push(newGroup); }
+                      renderGroups();
+                  })
+                  .catch(() => { currentGroups.push(newGroup); renderGroups(); });
             });
 
             window._settingsInitialState = { getBio: () => initialBio, setBio: v => initialBio = v, getPublic: () => initialPublic, setPublic: v => initialPublic = v };
@@ -1145,36 +1172,155 @@
                 .catch(() => {});
         }
 
+        const GROUP_COLOR_OPTIONS = ['#6ee7b7', '#a7d7cc', '#fca5a5', '#fcd34d', '#7dd3fc', '#a5b4fc', '#cbd5e1', '#f0abfc'];
+        const DUMMY_GROUPS = [
+            { id: 'g1', name: '개발', color: '#6ee7b7', visibility: 'public' },
+            { id: 'g2', name: '디자인', color: '#fb923c', visibility: 'public' },
+            { id: 'g3', name: '미팅', color: '#60a5fa', visibility: 'private' },
+            { id: 'g4', name: '개인', color: '#fbbf24', visibility: 'public' }
+        ];
+        let currentGroups = [];
+        let pendingDeleteId = null;
+
         function fetchGroups() {
             fetch(`${API_BASE}/api/groups`)
-                .then(r => r.ok ? r.json() : [])
-                .then(groups => renderGroups(groups))
-                .catch(() => renderGroups([]));
+                .then(r => r.ok ? r.json() : null)
+                .then(data => {
+                    if (data && Array.isArray(data) && data.length > 0) {
+                        currentGroups = data;
+                    } else if (data && data.data && Array.isArray(data.data)) {
+                        currentGroups = data.data;
+                    } else {
+                        currentGroups = DUMMY_GROUPS;
+                    }
+                    renderGroups();
+                })
+                .catch(() => { currentGroups = DUMMY_GROUPS; renderGroups(); });
         }
 
-        function renderGroups(groups) {
+        function renderGroups() {
             const list = document.getElementById('group-list');
-            if (groups.length === 0) {
+            list.innerHTML = '';
+
+            if (currentGroups.length === 0) {
                 list.innerHTML = '<div class="py-8 text-center text-sm opacity-40">등록된 그룹이 없습니다</div>';
                 return;
             }
-            list.innerHTML = groups.map(g => `
-                <div class="flex items-center justify-between p-4 bg-[#F5F5F0]/30 dark:bg-white/5 rounded-xl border border-primary/5 hover:border-primary/20 transition-all group">
-                    <div class="flex items-center gap-3">
-                        <span class="size-3 rounded-full" style="background-color: ${escapeHtml(g.color || '#82ccbd')}"></span>
-                        <span class="text-sm font-medium">${escapeHtml(g.name)}</span>
-                    </div>
-                    <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button onclick="deleteGroup('${g.id}')" class="size-8 flex items-center justify-center rounded-lg hover:bg-white dark:hover:bg-white/10 text-gray-400 hover:text-red-400 transition-all">
-                            <span class="material-symbols-outlined text-[18px]">delete</span>
-                        </button>
-                    </div>
-                </div>`).join('');
+
+            currentGroups.forEach((g, idx) => {
+                const isDeleting = pendingDeleteId === g.id;
+                const row = document.createElement('div');
+
+                if (isDeleting) {
+                    row.className = 'flex flex-col p-3 bg-red-50/50 dark:bg-red-400/5 rounded-xl border border-red-100 dark:border-red-400/20';
+                    row.innerHTML = `
+                        <div class="flex items-center gap-3 opacity-40 mb-2">
+                            <span class="material-symbols-outlined text-gray-300">drag_indicator</span>
+                            <div class="w-3 h-3 rounded-full" style="background-color: ${escapeHtml(g.color || '#82ccbd')}"></div>
+                            <span class="flex-1 text-sm font-medium">${escapeHtml(g.name)}</span>
+                        </div>
+                        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white dark:bg-[#25312f] p-3 rounded-lg shadow-sm">
+                            <p class="text-xs text-gray-600 dark:text-gray-300">이 그룹의 할 일은 그룹 없음으로 변경됩니다. 삭제할까요?</p>
+                            <div class="flex gap-2 shrink-0">
+                                <button class="cancel-delete px-3 py-1.5 text-xs font-medium rounded-md hover:bg-gray-100 dark:hover:bg-white/10 transition-colors">취소</button>
+                                <button class="confirm-delete px-3 py-1.5 text-xs font-bold text-white bg-red-400 rounded-md hover:bg-red-500 transition-colors">삭제</button>
+                            </div>
+                        </div>`;
+                    row.querySelector('.cancel-delete').addEventListener('click', () => { pendingDeleteId = null; renderGroups(); });
+                    row.querySelector('.confirm-delete').addEventListener('click', () => confirmDeleteGroup(g.id));
+                } else {
+                    row.className = 'relative flex items-center gap-3 p-3 hover:bg-[#F5F5F0]/30 dark:hover:bg-white/5 rounded-xl transition-all';
+
+                    const drag = document.createElement('span');
+                    drag.className = 'material-symbols-outlined text-gray-300 cursor-grab active:cursor-grabbing select-none';
+                    drag.textContent = 'drag_indicator';
+                    row.appendChild(drag);
+
+                    const colorDot = document.createElement('div');
+                    colorDot.className = 'w-3 h-3 rounded-full cursor-pointer hover:ring-2 hover:ring-offset-2 transition-all';
+                    colorDot.style.backgroundColor = g.color || '#82ccbd';
+                    row.appendChild(colorDot);
+
+                    const colorPicker = document.createElement('div');
+                    colorPicker.className = 'color-picker-popup absolute top-10 left-12 z-10 bg-white dark:bg-[#25312f] shadow-xl border border-black/5 p-2 rounded-lg gap-1.5';
+                    GROUP_COLOR_OPTIONS.forEach(c => {
+                        const swatch = document.createElement('div');
+                        swatch.className = 'size-5 rounded-full cursor-pointer hover:scale-110 transition-transform';
+                        if (c === (g.color || '#82ccbd')) swatch.classList.add('ring-2', 'ring-primary');
+                        swatch.style.backgroundColor = c;
+                        swatch.addEventListener('click', () => {
+                            g.color = c;
+                            colorPicker.classList.remove('active');
+                            updateGroup(g);
+                            renderGroups();
+                        });
+                        colorPicker.appendChild(swatch);
+                    });
+                    row.appendChild(colorPicker);
+                    colorDot.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        document.querySelectorAll('.color-picker-popup.active').forEach(p => p.classList.remove('active'));
+                        colorPicker.classList.toggle('active');
+                    });
+
+                    const name = document.createElement('span');
+                    name.className = 'flex-1 text-sm font-medium';
+                    name.textContent = g.name;
+                    row.appendChild(name);
+
+                    const toggleId = 'grp-toggle-' + idx;
+                    const isPublic = g.visibility === 'public';
+                    const toggleWrap = document.createElement('div');
+                    toggleWrap.className = 'relative inline-block w-9 align-middle select-none';
+                    toggleWrap.innerHTML = `
+                        <input class="group-toggle-checkbox hidden" id="${toggleId}" type="checkbox" ${isPublic ? 'checked' : ''}/>
+                        <label class="group-toggle-label block w-9 h-5 rounded-full bg-gray-200 cursor-pointer transition-colors duration-200 relative" for="${toggleId}">
+                            <span class="toggle-dot absolute left-0.5 top-0.5 bg-white w-4 h-4 rounded-full transition-transform duration-200 shadow-sm"></span>
+                        </label>`;
+                    row.appendChild(toggleWrap);
+                    const checkbox = toggleWrap.querySelector('input');
+                    checkbox.addEventListener('change', () => {
+                        g.visibility = checkbox.checked ? 'public' : 'private';
+                        updateGroup(g);
+                    });
+
+                    const deleteBtn = document.createElement('button');
+                    deleteBtn.className = 'material-symbols-outlined text-[20px] opacity-30 hover:opacity-100 hover:text-red-500 transition-all ml-2';
+                    deleteBtn.textContent = 'close';
+                    deleteBtn.addEventListener('click', () => { pendingDeleteId = g.id; renderGroups(); });
+                    row.appendChild(deleteBtn);
+                }
+
+                list.appendChild(row);
+            });
+
+            document.addEventListener('click', (e) => {
+                if (!e.target.closest('.color-picker-popup') && !e.target.closest('.w-3.h-3')) {
+                    document.querySelectorAll('.color-picker-popup.active').forEach(p => p.classList.remove('active'));
+                }
+            }, { once: true });
         }
 
-        function deleteGroup(groupId) {
+        function updateGroup(g) {
+            if (!g.id || g.id.startsWith('g')) return;
+            fetch(`${API_BASE}/api/groups/${g.id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: g.name, color: g.color, visibility: g.visibility })
+            }).catch(() => {});
+        }
+
+        function confirmDeleteGroup(groupId) {
+            pendingDeleteId = null;
             fetch(`${API_BASE}/api/groups/${groupId}`, { method: 'DELETE' })
-                .then(r => { if (r.ok) fetchGroups(); });
+                .then(r => {
+                    currentGroups = currentGroups.filter(g => g.id !== groupId);
+                    renderGroups();
+                })
+                .catch(() => {
+                    currentGroups = currentGroups.filter(g => g.id !== groupId);
+                    renderGroups();
+                });
         }
 
         function formatDate(d) {
