@@ -214,6 +214,7 @@
 
         let actYear, actMonth;
         let selectedDateStr = null;
+        let aiRequestId = 0;
 
         function init() {
             const now = new Date();
@@ -275,14 +276,26 @@
                 btn.classList.toggle('shadow-sm', isActive);
             });
 
+            const aiSection = document.getElementById('ai-summary-section');
+            const aiText = document.getElementById('ai-summary-text');
+            aiSection.classList.remove('hidden');
+            aiText.textContent = 'AI 인사이트를 불러오는 중입니다...';
+            const requestId = ++aiRequestId;
+
             fetch(`${API_BASE}/api/v1/profiles/${PROFILE_SLUG}/ai-summary?period=${period}`)
                 .then(r => r.ok ? r.json() : null)
                 .then(resp => {
+                    if (requestId !== aiRequestId) return;
                     if (resp && resp.data && resp.data.summary) {
-                        document.getElementById('ai-summary-text').textContent = resp.data.summary;
+                        aiText.textContent = resp.data.summary;
+                    } else {
+                        aiText.textContent = '선택한 기간의 AI 인사이트가 아직 없습니다.';
                     }
                 })
-                .catch(() => {});
+                .catch(() => {
+                    if (requestId !== aiRequestId) return;
+                    aiText.textContent = 'AI 인사이트를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.';
+                });
         }
 
         function applyProfile(p) {
@@ -299,6 +312,7 @@
                 document.getElementById('stats-private').style.display = 'grid';
                 document.getElementById('public-content').classList.add('hidden');
                 document.getElementById('private-lock-section').classList.remove('hidden');
+                document.getElementById('ai-summary-section').classList.add('hidden');
                 return;
             }
 
@@ -306,6 +320,7 @@
             document.getElementById('stats-private').classList.add('hidden');
             document.getElementById('public-content').classList.remove('hidden');
             document.getElementById('private-lock-section').classList.add('hidden');
+            document.getElementById('ai-summary-section').classList.remove('hidden');
 
             if (p.total_tasks !== undefined) document.getElementById('stat-total').textContent = p.total_tasks.toLocaleString();
             if (p.completion_rate !== undefined) document.getElementById('stat-rate').textContent = Math.round(p.completion_rate) + '%';
@@ -320,8 +335,8 @@
 
             if (p.ai_summary) {
                 document.getElementById('ai-summary-text').textContent = p.ai_summary;
-                document.getElementById('ai-summary-section').classList.remove('hidden');
             }
+            switchAiPeriod(currentAiPeriod);
 
             renderGroupDist(p.group_distribution || []);
             renderKeywords(p.keywords || []);

@@ -72,7 +72,7 @@ O(NlogN)은 단순한 할 일 관리(TODO)가 아니라, 실행 기록을 꾸준
 
 ## 4. 엔드포인트 목록
 
-총 21개 엔드포인트. 기준 경로 접두사: `/api/v1`
+총 22개 엔드포인트. 기준 경로 접두사: `/api/v1`
 
 | # | Method | Path | 인증 요구 | 설명 |
 |---|--------|------|-----------|------|
@@ -82,21 +82,22 @@ O(NlogN)은 단순한 할 일 관리(TODO)가 아니라, 실행 기록을 꾸준
 | 4 | GET | `/users/me` | 필요 | 현재 인증 사용자 정보 조회 |
 | 5 | GET | `/profiles/{slug}` | 불필요 | 공개 프로필 조회 |
 | 6 | GET | `/profiles/{slug}/tasks` | 불필요 | 공개 프로필의 public task 목록 |
-| 7 | GET | `/profiles/{slug}/tasks/calendar/monthly` | 불필요 | 공개 프로필 월간 캘린더 집계 |
-| 8 | GET | `/groups` | 필요 | 내 그룹 목록 조회 |
-| 9 | POST | `/groups` | 필요 | 그룹 생성 |
-| 10 | GET | `/groups/{group_id}` | 필요 | 그룹 상세 조회 |
-| 11 | PATCH | `/groups/{group_id}` | 필요 | 그룹 수정 |
-| 12 | DELETE | `/groups/{group_id}` | 필요 | 그룹 삭제 |
-| 13 | GET | `/tasks` | 필요 | 내 task 목록 조회 |
-| 14 | POST | `/tasks` | 필요 | task 생성 |
-| 15 | GET | `/tasks/{task_id}` | 필요 | task 상세 조회 (owner 전용) |
-| 16 | PATCH | `/tasks/{task_id}` | 필요 | task 수정 (owner 전용) |
-| 17 | DELETE | `/tasks/{task_id}` | 필요 | task 삭제 (owner 전용) |
-| 18 | GET | `/tasks/calendar/monthly` | 필요 | 내 월간 캘린더 집계 |
-| 19 | GET | `/tasks/{task_id}/reactions` | 불필요 | task reaction 집계 조회 (public task만) |
-| 20 | POST | `/tasks/{task_id}/reactions` | 필요 | task reaction 토글 (public task만) |
-| 21 | DELETE | `/tasks/{task_id}/reactions?emoji=` | 필요 | task reaction 제거 (public task만) |
+| 7 | GET | `/profiles/{slug}/ai-summary` | 불필요 | 공개 프로필 AI 생산성 요약 조회 (기간별) |
+| 8 | GET | `/profiles/{slug}/tasks/calendar/monthly` | 불필요 | 공개 프로필 월간 캘린더 집계 |
+| 9 | GET | `/groups` | 필요 | 내 그룹 목록 조회 |
+| 10 | POST | `/groups` | 필요 | 그룹 생성 |
+| 11 | GET | `/groups/{group_id}` | 필요 | 그룹 상세 조회 |
+| 12 | PATCH | `/groups/{group_id}` | 필요 | 그룹 수정 |
+| 13 | DELETE | `/groups/{group_id}` | 필요 | 그룹 삭제 |
+| 14 | GET | `/tasks` | 필요 | 내 task 목록 조회 |
+| 15 | POST | `/tasks` | 필요 | task 생성 |
+| 16 | GET | `/tasks/{task_id}` | 필요 | task 상세 조회 (owner 전용) |
+| 17 | PATCH | `/tasks/{task_id}` | 필요 | task 수정 (owner 전용) |
+| 18 | DELETE | `/tasks/{task_id}` | 필요 | task 삭제 (owner 전용) |
+| 19 | GET | `/tasks/calendar/monthly` | 필요 | 내 월간 캘린더 집계 |
+| 20 | GET | `/tasks/{task_id}/reactions` | 불필요 | task reaction 집계 조회 (public task만) |
+| 21 | POST | `/tasks/{task_id}/reactions` | 필요 | task reaction 토글 (public task만) |
+| 22 | DELETE | `/tasks/{task_id}/reactions?emoji=` | 필요 | task reaction 제거 (public task만) |
 
 ---
 
@@ -107,6 +108,7 @@ O(NlogN)은 단순한 할 일 관리(TODO)가 아니라, 실행 기록을 꾸준
 | `GET /users/me` | 허용 | N/A (self 전용) | 거부 (401) | 현재 인증 사용자만 반환 |
 | `GET /profiles/{slug}` | 허용 | 허용 | 허용 | public profile allowlist 응답 |
 | `GET /profiles/{slug}/tasks` | 허용 | 허용 | 허용 | visibility=public 강제 |
+| `GET /profiles/{slug}/ai-summary` | 허용 | 허용 | 허용 | profile public + public task 범위 기반 요약 |
 | `GET /profiles/{slug}/tasks/calendar/monthly` | 허용 | 허용 | 허용 | profile timezone 기준 |
 | `GET /tasks` | 허용 | 거부 (403) | 거부 (401) | owner 전용 private 범위 |
 | `POST /tasks` | 허용 | 거부 (403) | 거부 (401) | owner task 생성 |
@@ -268,6 +270,23 @@ O(NlogN)은 단순한 할 일 관리(TODO)가 아니라, 실행 기록을 꾸준
 
 `visibility` 필터 입력은 무시하거나 거부한다. 서버는 항상 `visibility=public`을 강제한다.
 
+추가 공개 경계 규칙:
+
+- task가 `group_id`를 가진 경우, 연결된 group의 `visibility`가 `public`일 때만 해당 task를 공개 profile 응답에 포함한다.
+- 연결된 group의 `visibility`가 `private`이면 task 자체를 공개 profile 응답에서 제외한다.
+- `group_id`가 없는 task는 기존과 동일하게 task `visibility=public` 기준으로 노출한다.
+
+### 7.6 AI 요약 조회 (공개 프로필, `GET /profiles/{slug}/ai-summary`)
+
+| 파라미터 | 타입 | 설명 |
+|---------|------|------|
+| `period` | string | 선택. `weekly`, `monthly`, `30days` 중 하나. 기본값 `monthly` |
+
+- 서버는 `period`에 따라 공개 task 기반 요약을 계산해 `summary`를 반환한다.
+- `period`가 허용값이 아니면 `400 bad-request`를 반환한다.
+- 프로필이 비공개(`visibility=private`)이면 `404 resource-not-found`로 응답해 비공개 상태를 노출하지 않는다.
+- 집계 대상은 `task.visibility=public`이며, `group_id`가 있는 경우 연결 group `visibility=public`인 task만 포함한다.
+
 ---
 
 ## 8. 월간 캘린더 집계 요구사항
@@ -355,7 +374,7 @@ O(NlogN)은 단순한 할 일 관리(TODO)가 아니라, 실행 기록을 꾸준
 |---------|---------------------|
 | 아바타 + 이름 + @slug + bio | `GET /profiles/{slug}` |
 | 총 task 수 / 완료율 / 연속 일수 | `stats_summary` + 클라이언트 계산 |
-| AI 생산성 요약 | 클라이언트 집계 (v1 API 미포함) |
+| AI 생산성 요약 | `GET /profiles/{slug}/ai-summary?period=weekly\|monthly\|30days` |
 | 월간 히트맵 | `GET /profiles/{slug}/tasks/calendar/monthly` |
 | 그룹 분포 (디자인 45% / 개발 30% 등) | 클라이언트 집계 |
 | 미루기 패턴 / 관심 키워드 | 클라이언트 집계 (v1 API 미포함) |
@@ -407,8 +426,34 @@ v1에서 명시적으로 지원하지 않는 기능 목록이다.
 | 로그아웃 | 현재 디바이스 세션만 폐기, 204 반환 |
 | task CRUD | owner만 생성/수정/삭제 가능, 비인증 시 401, 타인 접근 시 403 |
 | 공개 프로필 | 비인증 방문자도 profile 및 public task 목록 조회 가능 |
+| 공개 프로필 그룹 경계 | public task라도 연결 group이 private이면 profile task 목록에서 제외 |
+| 공개 프로필 AI 요약 | period(weekly/monthly/30days) 요청 시 공개 범위 task 기반 summary 반환, 비공개 프로필은 404 |
 | 월간 캘린더 | year/month 필수, task 없는 날도 0값 포함, 전체 월 반환 |
 | reaction | public task에만 적용, 인증 사용자만 토글 가능, (user_id, task_id, emoji) 단위 토글 |
 | 페이지네이션 | offset/limit, 기본값 0/20, max 100, 알 수 없는 필터 키는 400 |
 | 오류 응답 | 모든 오류는 application/problem+json, RFC9457 핵심 멤버 포함 |
-| 엔드포인트 수 | 총 21개 엔드포인트 |
+| 엔드포인트 수 | 총 22개 엔드포인트 |
+
+---
+
+## 14. 랜딩 페이지 네비게이션 요구사항
+
+- 랜딩 페이지 상단의 `소개`, `기능` 링크는 Thymeleaf 컨텍스트 경로를 반영하여 라우팅되어야 한다.
+- 내부 링크는 `th:href`를 함께 사용해 루트 배포와 컨텍스트 경로 배포 모두에서 동일하게 동작해야 한다.
+- 링크 클릭 시 동일 페이지 잔류 없이 각각 `/about`, `/features`로 이동해야 한다.
+
+---
+
+## 15. 할 일 생성 모달 태그 입력 UX 요구사항
+
+- 할 일 생성 모달의 태그 영역에서는 태그 선택만 제공하고, `+ 추가` 버튼을 노출하지 않는다.
+- 태그 추가를 위한 `prompt` 기반 인터랙션은 사용하지 않는다.
+- 태그 영역은 기본 태그와 기존 그룹 태그를 렌더링해야 하며, 기존 선택 동작은 유지되어야 한다.
+
+---
+
+## 16. 할 일 수정 모달 날짜/시간 편집 요구사항
+
+- 할 일 수정 모달의 캘린더 버튼 클릭 시 생성 모달과 동일한 날짜/시간 피커를 사용해야 한다.
+- 피커에서 선택한 날짜와 시간은 수정 모달에 즉시 반영되어야 한다.
+- 할 일 저장 시 수정된 `due_date`, `start_time`, `end_time` 값이 PATCH 요청 payload에 포함되어야 한다.

@@ -29,7 +29,10 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -125,7 +128,8 @@ public class ProfileController {
                 user.getId(), status, groupId, dueDateFrom, dueDateTo, offset, limit);
 
         List<TaskResponse> tasks = page.getContent().stream()
-                .map(this::toTaskResponse)
+                .map(this::toPublicTaskResponse)
+                .flatMap(java.util.Optional::stream)
                 .toList();
 
         ListMeta meta = ListMeta.of(offset, limit, page.getTotalElements());
@@ -133,6 +137,105 @@ public class ProfileController {
     }
 
     public record ContextTagsResponse(List<ContextTag> tags) {}
+
+    public record AiSummaryResponse(
+            String period,
+            String summary,
+            @JsonProperty("task_count") int taskCount,
+            @JsonProperty("done_count") int doneCount,
+            @JsonProperty("todo_count") int todoCount,
+            @JsonProperty("in_progress_count") int inProgressCount,
+            @JsonProperty("period_from") String periodFrom,
+            @JsonProperty("period_to") String periodTo
+    ) {}
+
+    @GetMapping("/{slug}/ai-summary")
+    @Operation(
+            operationId = "getProfileAiSummary",
+            summary = "profile slug 기준 AI 인사이트 요약 조회",
+            description = "지정된 profile slug의 공개 task 데이터를 기간별(weekly/monthly/30days) 요약 문장으로 반환한다.",
+            security = {}
+    )
+    @ApiResponse(responseCode = "200", description = "AI 요약 반환 성공.")
+    @ApiResponse(responseCode = "400", description = "지원하지 않는 period 값.")
+    @ApiResponse(responseCode = "404", description = "비공개 프로필 또는 존재하지 않는 프로필.")
+    public ResponseEntity<DataMetaEnvelope<AiSummaryResponse>> getProfileAiSummary(
+            @Parameter(description = "프로필 slug") @PathVariable String slug,
+            @Parameter(description = "요약 기간: weekly|monthly|30days")
+            @RequestParam(defaultValue = "monthly") String period) {
+
+        UserEntity user = userRepository.findByProfileSlug(slug)
+                .orElseThrow(() -> new ApiException(
+                        ProblemType.RESOURCE_NOT_FOUND,
+                        "Profile not found",
+                        "/api/v1/profiles/" + slug + "/ai-summary"));
+
+        if ("private".equals(user.getVisibility())) {
+            throw new ApiException(
+                    ProblemType.RESOURCE_NOT_FOUND,
+                    "Profile not found",
+                    "/api/v1/profiles/" + slug + "/ai-summary");
+        }
+
+        ZoneId zoneId = ZoneId.of(user.getTimezone() != null ? user.getTimezone() : "UTC");
+        LocalDate today = LocalDate.now(zoneId);
+
+        long days;
+        if ("weekly".equals(period)) {
+            days = 7;
+        } else if ("monthly".equals(period)) {
+            days = 30;
+        } else if ("30days".equals(period)) {
+            days = 30;
+        } else {
+            throw new ApiException(
+                    ProblemType.BAD_REQUEST,
+                    "Unsupported period. Use weekly, monthly, or 30days.",
+                    "/api/v1/profiles/" + slug + "/ai-summary");
+        }
+
+        LocalDate fromDate = today.minusDays(days);
+        Instant fromInstant = fromDate.atStartOfDay(zoneId).toInstant();
+
+        List<TaskEntity> tasks = taskRepository
+                .findByOwnerUserIdAndVisibilityAndCreatedAtAfterOrderByCreatedAtDesc(user.getId(), "public", fromInstant)
+                .stream()
+                .filter(this::isTaskInPublicGroup)
+                .toList();
+
+        int taskCount = tasks.size();
+        int doneCount = (int) tasks.stream().filter(t -> "done".equals(t.getStatus())).count();
+        int todoCount = (int) tasks.stream().filter(t -> "todo".equals(t.getStatus())).count();
+        int inProgressCount = (int) tasks.stream().filter(t -> "in_progress".equals(t.getStatus())).count();
+
+        int completionRate = taskCount > 0 ? Math.round((doneCount * 100f) / taskCount) : 0;
+        String summary;
+        if (taskCount == 0) {
+            summary = "최근 기간의 공개 활동 기록이 아직 없습니다.";
+        } else {
+            summary = String.format(
+                    "최근 %d일 동안 공개 할 일 %d개 중 %d개를 완료해 달성률은 %d%%입니다. 진행 중 %d개, 예정 %d개를 바탕으로 꾸준한 실행 흐름을 만들고 있어요.",
+                    days,
+                    taskCount,
+                    doneCount,
+                    completionRate,
+                    inProgressCount,
+                    todoCount
+            );
+        }
+
+        AiSummaryResponse response = new AiSummaryResponse(
+                period,
+                summary,
+                taskCount,
+                doneCount,
+                todoCount,
+                inProgressCount,
+                fromDate.format(DateTimeFormatter.ISO_LOCAL_DATE),
+                today.format(DateTimeFormatter.ISO_LOCAL_DATE)
+        );
+        return ResponseEntity.ok(DataMetaEnvelope.of(response));
+    }
 
     @PostMapping("/me/context-tags")
     @Operation(
@@ -154,18 +257,21 @@ public class ProfileController {
         return ResponseEntity.ok(DataMetaEnvelope.of(new ContextTagsResponse(tags)));
     }
 
-    private TaskResponse toTaskResponse(TaskEntity task) {
+    private java.util.Optional<TaskResponse> toPublicTaskResponse(TaskEntity task) {
         String groupName = null;
         String groupColor = null;
         if (task.getGroupId() != null) {
             GroupEntity group = groupRepository.findById(task.getGroupId()).orElse(null);
             if (group != null) {
+                if (!"public".equals(group.getVisibility())) {
+                    return java.util.Optional.empty();
+                }
                 groupName = group.getDescription();
                 groupColor = group.getColor();
             }
         }
 
-        return new TaskResponse(
+        return java.util.Optional.of(new TaskResponse(
                 task.getId().toString(),
                 task.getOwnerUserId().toString(),
                 task.getGroupId() != null ? task.getGroupId().toString() : null,
@@ -181,6 +287,14 @@ public class ProfileController {
                 task.getEndTime() != null ? task.getEndTime().toString() : null,
                 task.getTags(),
                 task.getReferenceLinks()
-        );
+        ));
+    }
+
+    private boolean isTaskInPublicGroup(TaskEntity task) {
+        if (task.getGroupId() == null) {
+            return true;
+        }
+        GroupEntity group = groupRepository.findById(task.getGroupId()).orElse(null);
+        return group != null && "public".equals(group.getVisibility());
     }
 }

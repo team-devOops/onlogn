@@ -24,6 +24,8 @@ public interface TaskRepository extends JpaRepository<TaskEntity, UUID>, JpaSpec
 
     List<TaskEntity> findByOwnerUserIdAndCreatedAtAfterOrderByCreatedAtDesc(UUID ownerUserId, Instant after);
 
+    List<TaskEntity> findByOwnerUserIdAndVisibilityAndCreatedAtAfterOrderByCreatedAtDesc(UUID ownerUserId, String visibility, Instant after);
+
     @Modifying
     @Query("UPDATE TaskEntity t SET t.groupId = null WHERE t.groupId = :groupId")
     void detachTasksFromGroup(UUID groupId);
