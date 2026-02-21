@@ -1,5 +1,5 @@
 SET @source_user_uuid = '11111111-1111-1111-1111-111111111111';
-SET @target_user_uuid = 'b5cc9aad-b658-4aa2-8d63-82d9d6358ed8';
+SET @target_user_uuid = '3c87a218-4677-4700-acc5-5b4ec19f6bc5';
 
 SET @source_user_bin = UUID_TO_BIN(@source_user_uuid);
 SET @target_user_bin = UUID_TO_BIN(@target_user_uuid);
