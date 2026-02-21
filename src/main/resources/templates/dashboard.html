@@ -389,8 +389,19 @@
                             <img id="settings-avatar" alt="Profile" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDlIxV012rtQSh3c816kig9I1rbZnOaJmHo4nBU18epa_cHJBOc6RIKQrel5uCTlcNcSTueF4n7lQ00MlvOFxCrUlvWhepcY4Zj0o_WbyGjJMcgNheolAZmooM3x0N5zfuQI4cdQymnFkq50O66u5pVYll18Ueyt_dpRHayzgyPlxsiNIuOSpTxOzHITr8dSDi7W9LkBrkHVidABRjBJ3Kh3bBAYoewy4E22WO71VZ9Jbmn6BQLw4nA8-qoh9TmoWGa1K1ULgeX3AwG"/>
                         </div>
                         <div class="flex flex-col">
-                            <div class="flex items-center gap-1.5">
-                                <span id="settings-name" class="font-bold text-base"></span>
+                            <div class="flex items-center gap-1.5 flex-wrap">
+                                <div id="settings-name-display-wrap" class="flex items-center gap-1.5">
+                                    <span id="settings-name" class="font-bold text-base"></span>
+                                    <button id="btn-edit-display-name" type="button" class="size-6 rounded-full flex items-center justify-center hover:bg-primary/10 text-primary/70 hover:text-primary transition-colors" aria-label="이름 수정">
+                                        <span class="material-symbols-outlined text-[16px]">edit</span>
+                                    </button>
+                                </div>
+                                <div id="settings-name-edit-wrap" class="hidden items-center gap-1.5">
+                                    <input id="settings-name-input" type="text" maxlength="60" class="w-[180px] bg-[#F5F5F0]/70 dark:bg-white/5 border border-primary/20 rounded-lg px-3 py-1 text-sm font-bold focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all" placeholder="이름을 입력하세요" />
+                                    <button id="btn-cancel-display-name" type="button" class="size-6 rounded-full flex items-center justify-center hover:bg-gray-100 dark:hover:bg-white/10 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors" aria-label="이름 수정 취소">
+                                        <span class="material-symbols-outlined text-[16px]">close</span>
+                                    </button>
+                                </div>
                                 <span id="settings-username" class="text-xs opacity-50"></span>
                             </div>
                             <a id="settings-profile-link" class="text-xs text-primary hover:underline mt-1" href="#" target="_blank">내 공개 프로필 보기</a>
@@ -599,6 +610,100 @@
         let currentUser = null;
         let groupMap = {};
         let groupOrder = [];
+        const rawFetch = window.fetch.bind(window);
+        let refreshInFlight = null;
+        let authFailureHandled = false;
+
+        function handleAuthRequired() {
+            if (authFailureHandled) return;
+            authFailureHandled = true;
+            clearAuthTokens();
+            alert('로그인 정보가 없습니다. 다시 로그인해주세요.');
+            window.location.href = '/';
+        }
+
+        function saveAuthTokens(tokens) {
+            if (!tokens) return;
+            if (tokens.access_token) localStorage.setItem('access_token', tokens.access_token);
+            if (tokens.refresh_token) localStorage.setItem('refresh_token', tokens.refresh_token);
+            if (tokens.expires_in) localStorage.setItem('token_expires_at', String(Date.now() + tokens.expires_in * 1000));
+        }
+
+        function clearAuthTokens() {
+            localStorage.removeItem('access_token');
+            localStorage.removeItem('refresh_token');
+            localStorage.removeItem('token_expires_at');
+        }
+
+        function toAbsoluteUrl(input) {
+            if (typeof input === 'string') return new URL(input, window.location.origin).toString();
+            if (input && input.url) return new URL(input.url, window.location.origin).toString();
+            return '';
+        }
+
+        function isApiRequestUrl(url) {
+            return url.includes('/api/v1/');
+        }
+
+        function isAuthRequestUrl(url) {
+            return url.includes('/api/v1/auth/');
+        }
+
+        async function refreshAccessToken() {
+            if (refreshInFlight) return refreshInFlight;
+
+            const refreshToken = localStorage.getItem('refresh_token');
+            if (!refreshToken) return false;
+
+            refreshInFlight = rawFetch('/api/v1/auth/refresh', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ data: { refresh_token: refreshToken } })
+            })
+                .then(r => r.ok ? r.json() : null)
+                .then(resp => {
+                    if (!resp || !resp.data || !resp.data.access_token) {
+                        clearAuthTokens();
+                        return false;
+                    }
+                    saveAuthTokens(resp.data);
+                    return true;
+                })
+                .catch(() => false)
+                .finally(() => {
+                    refreshInFlight = null;
+                });
+
+            return refreshInFlight;
+        }
+
+        function withAuthorizationHeader(init) {
+            const nextInit = Object.assign({}, init || {});
+            const headers = Object.assign({}, nextInit.headers || {});
+            const token = localStorage.getItem('access_token');
+            if (token) headers['Authorization'] = 'Bearer ' + token;
+            nextInit.headers = headers;
+            return nextInit;
+        }
+
+        async function fetchWithAutoRefresh(input, init) {
+            const url = toAbsoluteUrl(input);
+            const requestInit = isApiRequestUrl(url) ? withAuthorizationHeader(init) : (init || {});
+            let response = await rawFetch(input, requestInit);
+
+            if (response.status !== 401) return response;
+            if (!isApiRequestUrl(url) || isAuthRequestUrl(url)) return response;
+
+            const refreshed = await refreshAccessToken();
+            if (!refreshed) {
+                handleAuthRequired();
+                return response;
+            }
+
+            return rawFetch(input, withAuthorizationHeader(init));
+        }
+
+        window.fetch = fetchWithAutoRefresh;
 
         function authHeaders(extra) {
             const headers = Object.assign({ 'Content-Type': 'application/json' }, extra || {});
@@ -608,14 +713,27 @@
         }
 
         function fetchCurrentUser() {
-            fetch('/api/v1/users/me', { headers: authHeaders() })
-                .then(r => r.ok ? r.json() : null)
+            return fetch('/api/v1/users/me', { headers: authHeaders() })
+                .then(r => {
+                    if (r.status === 401) {
+                        handleAuthRequired();
+                        return null;
+                    }
+                    return r.ok ? r.json() : null;
+                })
                 .then(resp => {
-                    if (!resp || !resp.data) return;
+                    if (!resp || !resp.data) {
+                        handleAuthRequired();
+                        return false;
+                    }
                     currentUser = resp.data;
                     applyCurrentUser(currentUser);
+                    return true;
                 })
-                .catch(() => {});
+                .catch(() => {
+                    handleAuthRequired();
+                    return false;
+                });
         }
 
         function applyCurrentUser(u) {
@@ -649,9 +767,11 @@
             initSettings();
             initEditModal();
 
-            fetchCurrentUser();
-            render();
-            fetchTasks(selectedDate);
+            fetchCurrentUser().then(authenticated => {
+                if (!authenticated) return;
+                render();
+                fetchTasks(selectedDate);
+            });
         }
 
         function changeMonth(delta) {
@@ -1663,23 +1783,80 @@
             const bio = document.getElementById('settings-bio');
             const saveBtn = document.getElementById('btn-save-profile');
             const publicToggle = document.getElementById('settings-public-toggle');
+            const nameDisplay = document.getElementById('settings-name');
+            const nameInput = document.getElementById('settings-name-input');
+            const nameDisplayWrap = document.getElementById('settings-name-display-wrap');
+            const nameEditWrap = document.getElementById('settings-name-edit-wrap');
+            const editNameBtn = document.getElementById('btn-edit-display-name');
+            const cancelNameBtn = document.getElementById('btn-cancel-display-name');
 
-            let initialBio = '', initialPublic = true;
+            let initialBio = '', initialPublic = true, initialDisplayName = '';
+
+            function normalizedName() {
+                return nameInput.value.trim();
+            }
+
+            function isNameValid() {
+                return normalizedName().length > 0;
+            }
+
+            function refreshProfileSaveButton() {
+                const unchanged =
+                    bio.value === initialBio &&
+                    publicToggle.checked === initialPublic &&
+                    normalizedName() === initialDisplayName;
+                saveBtn.disabled = unchanged || !isNameValid();
+            }
+
+            function openDisplayNameEditor() {
+                nameDisplayWrap.classList.add('hidden');
+                nameEditWrap.classList.remove('hidden');
+                nameEditWrap.classList.add('flex');
+                nameInput.focus();
+                nameInput.select();
+            }
+
+            function closeDisplayNameEditor(restoreInitial) {
+                if (restoreInitial) {
+                    nameInput.value = initialDisplayName;
+                    nameDisplay.textContent = initialDisplayName;
+                }
+                nameEditWrap.classList.add('hidden');
+                nameEditWrap.classList.remove('flex');
+                nameDisplayWrap.classList.remove('hidden');
+                refreshProfileSaveButton();
+            }
 
             bio.addEventListener('input', () => {
                 document.getElementById('settings-bio-count').textContent = bio.value.length + ' / 100';
-                saveBtn.disabled = (bio.value === initialBio && publicToggle.checked === initialPublic);
+                refreshProfileSaveButton();
             });
 
             publicToggle.addEventListener('change', () => {
-                saveBtn.disabled = (bio.value === initialBio && publicToggle.checked === initialPublic);
+                refreshProfileSaveButton();
+            });
+
+            editNameBtn.addEventListener('click', openDisplayNameEditor);
+            cancelNameBtn.addEventListener('click', () => closeDisplayNameEditor(true));
+            nameInput.addEventListener('input', refreshProfileSaveButton);
+            nameInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') {
+                    e.preventDefault();
+                    closeDisplayNameEditor(true);
+                }
             });
 
             saveBtn.addEventListener('click', () => {
+                const nextDisplayName = normalizedName();
+                if (!nextDisplayName) {
+                    nameInput.focus();
+                    return;
+                }
                 fetch('/api/v1/users/me', {
                     method: 'PATCH',
                     headers: authHeaders(),
                     body: JSON.stringify({
+                        display_name: nextDisplayName,
                         bio: bio.value,
                         visibility: publicToggle.checked ? 'public' : 'private'
                     })
@@ -1687,8 +1864,12 @@
                     if (r.ok) {
                         initialBio = bio.value;
                         initialPublic = publicToggle.checked;
-                        saveBtn.disabled = true;
+                        initialDisplayName = nextDisplayName;
+                        nameInput.value = nextDisplayName;
+                        nameDisplay.textContent = nextDisplayName;
+                        closeDisplayNameEditor(false);
                         if (currentUser) currentUser.bio = bio.value;
+                        if (currentUser) currentUser.display_name = nextDisplayName;
                         return r.json();
                     }
                 }).then(resp => {
@@ -1706,7 +1887,14 @@
                 renderGroups();
             });
 
-            window._settingsInitialState = { getBio: () => initialBio, setBio: v => initialBio = v, getPublic: () => initialPublic, setPublic: v => initialPublic = v };
+            window._settingsInitialState = {
+                getBio: () => initialBio,
+                setBio: v => initialBio = v,
+                getPublic: () => initialPublic,
+                setPublic: v => initialPublic = v,
+                getDisplayName: () => initialDisplayName,
+                setDisplayName: v => initialDisplayName = v
+            };
         }
 
         function openLogoutConfirm() {
@@ -1791,25 +1979,153 @@
 
         function applyProfileFromUser(u) {
             document.getElementById('settings-name').textContent = u.display_name || '';
+            document.getElementById('settings-name-input').value = u.display_name || '';
             document.getElementById('settings-username').textContent = u.profile_slug ? '@' + u.profile_slug : '';
             if (u.avatar_url) document.getElementById('settings-avatar').src = u.avatar_url;
             if (u.profile_slug) document.getElementById('settings-profile-link').href = '/@' + u.profile_slug;
 
             const bio = document.getElementById('settings-bio');
+            const publicToggle = document.getElementById('settings-public-toggle');
             bio.value = u.bio || '';
+            publicToggle.checked = (u.visibility || 'public') === 'public';
             document.getElementById('settings-bio-count').textContent = bio.value.length + ' / 100';
             document.getElementById('btn-save-profile').disabled = true;
+            document.getElementById('settings-name-edit-wrap').classList.add('hidden');
+            document.getElementById('settings-name-edit-wrap').classList.remove('flex');
+            document.getElementById('settings-name-display-wrap').classList.remove('hidden');
 
             if (window._settingsInitialState) {
                 window._settingsInitialState.setBio(bio.value);
+                window._settingsInitialState.setPublic(publicToggle.checked);
+                window._settingsInitialState.setDisplayName((u.display_name || '').trim());
             }
         }
 
         const GROUP_COLOR_OPTIONS = ['#6ee7b7', '#a7d7cc', '#fca5a5', '#fcd34d', '#7dd3fc', '#a5b4fc', '#cbd5e1', '#f0abfc'];
+        const GROUP_COLOR_GRID = [
+            '#f87171', '#fca5a5', '#fb923c', '#fdba74', '#fbbf24', '#fcd34d', '#facc15', '#fde047', '#a3e635',
+            '#bef264', '#4ade80', '#86efac', '#34d399', '#6ee7b7', '#2dd4bf', '#5eead4', '#22d3ee', '#67e8f9',
+            '#38bdf8', '#7dd3fc', '#60a5fa', '#93c5fd', '#818cf8', '#a5b4fc', '#a78bfa', '#c4b5fd', '#c084fc'
+        ];
         const DEFAULT_GROUP = { id: '__default__', name: '기본', color: '#9ca3af', visibility: 'private', isDefault: true };
         let currentGroups = [];
         let pendingDeleteId = null;
         let isAddingGroup = false;
+
+        function normalizeHexColor(value) {
+            if (value == null) return null;
+            let hex = String(value).trim();
+            if (!hex) return null;
+            if (hex.startsWith('#')) hex = hex.slice(1);
+            if (/^[0-9a-fA-F]{3}$/.test(hex)) {
+                hex = hex.split('').map(ch => ch + ch).join('');
+            }
+            if (!/^[0-9a-fA-F]{6}$/.test(hex)) return null;
+            return '#' + hex.toLowerCase();
+        }
+
+        function createColorPickerPopup(initialColor, onSelectColor) {
+            const picker = document.createElement('div');
+            picker.className = 'color-picker-popup absolute top-10 left-12 z-10 bg-white dark:bg-[#25312f] shadow-xl border border-black/5 p-3 rounded-xl flex-col gap-3 w-[248px]';
+
+            const swatches = document.createElement('div');
+            swatches.className = 'flex flex-wrap gap-1.5';
+
+            const normalizedInitial = normalizeHexColor(initialColor) || '#82ccbd';
+            const applyColor = (color) => {
+                const normalized = normalizeHexColor(color);
+                if (!normalized) return;
+                onSelectColor(normalized, true);
+            };
+
+            GROUP_COLOR_OPTIONS.forEach(c => {
+                const normalized = normalizeHexColor(c) || c;
+                const swatch = document.createElement('button');
+                swatch.type = 'button';
+                swatch.dataset.color = normalized;
+                swatch.className = 'size-5 rounded-full cursor-pointer hover:scale-110 transition-transform';
+                if (normalized === normalizedInitial) swatch.classList.add('ring-2', 'ring-primary');
+                swatch.style.backgroundColor = normalized;
+                swatch.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    applyColor(normalized);
+                });
+                swatches.appendChild(swatch);
+            });
+            picker.appendChild(swatches);
+
+            const gridWrap = document.createElement('div');
+            gridWrap.className = 'pt-2 border-t border-black/5 dark:border-white/10';
+            const grid = document.createElement('div');
+            grid.className = 'grid grid-cols-9 gap-1.5';
+            GROUP_COLOR_GRID.forEach(c => {
+                const normalized = normalizeHexColor(c) || c;
+                const chip = document.createElement('button');
+                chip.type = 'button';
+                chip.dataset.color = normalized;
+                chip.className = 'size-4 rounded-sm cursor-pointer hover:scale-110 transition-transform';
+                if (normalized === normalizedInitial) chip.classList.add('ring-1', 'ring-primary');
+                chip.style.backgroundColor = normalized;
+                chip.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    applyColor(normalized);
+                });
+                grid.appendChild(chip);
+            });
+            gridWrap.appendChild(grid);
+            picker.appendChild(gridWrap);
+
+            const customWrap = document.createElement('div');
+            customWrap.className = 'pt-2 border-t border-black/5 dark:border-white/10 flex items-center gap-1.5';
+            customWrap.innerHTML = `
+                <div class="size-7 rounded-md border border-black/5 dark:border-white/10 shrink-0 color-preview" style="background:${escapeHtml(normalizedInitial)}"></div>
+                <span class="text-[11px] opacity-50">#</span>
+                <input class="color-hex-input w-[92px] h-7 bg-gray-50 dark:bg-white/5 border border-primary/10 rounded-md px-2 text-[11px] font-mono uppercase focus:ring-1 focus:ring-primary focus:border-transparent outline-none" maxlength="7" placeholder="82CCBD" type="text" value="${escapeHtml(normalizedInitial.replace('#', ''))}" />
+                <button type="button" class="apply-custom-color h-7 min-w-[48px] px-3 rounded-md text-[11px] font-bold bg-primary/10 text-primary hover:bg-primary/20 transition-colors">적용</button>`;
+            picker.appendChild(customWrap);
+
+            const hexInput = customWrap.querySelector('.color-hex-input');
+            const applyButton = customWrap.querySelector('.apply-custom-color');
+            const colorPreview = customWrap.querySelector('.color-preview');
+
+            function applyCustomColor() {
+                const normalized = normalizeHexColor(hexInput.value);
+                if (!normalized) {
+                    hexInput.classList.add('border-red-300', 'focus:ring-red-200');
+                    hexInput.focus();
+                    return;
+                }
+                hexInput.classList.remove('border-red-300', 'focus:ring-red-200');
+                hexInput.value = normalized.replace('#', '').toUpperCase();
+                onSelectColor(normalized, false);
+            }
+
+            applyButton.addEventListener('click', (e) => {
+                e.stopPropagation();
+                applyCustomColor();
+            });
+            hexInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    applyCustomColor();
+                }
+            });
+
+            picker.updateSelectedColor = (color) => {
+                const normalized = normalizeHexColor(color) || '#82ccbd';
+                picker.querySelectorAll('[data-color]').forEach(el => {
+                    const isSelected = el.dataset.color === normalized;
+                    const isGridChip = el.classList.contains('size-4');
+                    el.classList.toggle('ring-primary', isSelected);
+                    el.classList.toggle('ring-2', isSelected && !isGridChip);
+                    el.classList.toggle('ring-1', isSelected && isGridChip);
+                });
+                hexInput.value = normalized.replace('#', '').toUpperCase();
+                colorPreview.style.backgroundColor = normalized;
+            };
+
+            return picker;
+        }
 
         function fetchGroups() {
             fetch('/api/v1/groups?limit=100', { headers: authHeaders() })
@@ -1820,7 +2136,8 @@
                             id: g.id,
                             name: g.description || g.id,
                             color: g.color || '#82ccbd',
-                            visibility: g.visibility || 'public'
+                            visibility: g.visibility || 'public',
+                            sortOrder: typeof g.sort_order === 'number' ? g.sort_order : null
                         }));
                     } else {
                         currentGroups = [];
@@ -1847,6 +2164,7 @@
             currentGroups.forEach((g, idx) => {
                 const isDeleting = pendingDeleteId === g.id;
                 const row = document.createElement('div');
+                row.dataset.groupId = g.id;
 
                 if (isDeleting) {
                     row.className = 'flex flex-col p-3 bg-red-50/50 dark:bg-red-400/5 rounded-xl border border-red-100 dark:border-red-400/20';
@@ -1857,7 +2175,7 @@
                             <span class="flex-1 text-sm font-medium">${escapeHtml(g.name)}</span>
                         </div>
                         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white dark:bg-[#25312f] p-3 rounded-lg shadow-sm">
-                            <p class="text-xs text-gray-600 dark:text-gray-300">이 그룹의 할 일은 그룹 없음으로 변경됩니다. 삭제할까요?</p>
+                            <p class="text-xs text-gray-600 dark:text-gray-300">이 그룹의 할 일은 기본으로 변경됩니다. 삭제할까요?</p>
                             <div class="flex gap-2 shrink-0">
                                 <button class="cancel-delete px-3 py-1.5 text-xs font-medium rounded-md hover:bg-gray-100 dark:hover:bg-white/10 transition-colors">취소</button>
                                 <button class="confirm-delete px-3 py-1.5 text-xs font-bold text-white bg-red-400 rounded-md hover:bg-red-500 transition-colors">삭제</button>
@@ -1867,6 +2185,43 @@
                     row.querySelector('.confirm-delete').addEventListener('click', () => confirmDeleteGroup(g.id));
                 } else {
                     row.className = 'relative flex items-center gap-3 p-3 hover:bg-[#F5F5F0]/30 dark:hover:bg-white/5 rounded-xl transition-all';
+                    row.draggable = true;
+
+                    row.addEventListener('dragstart', (e) => {
+                        e.dataTransfer.effectAllowed = 'move';
+                        e.dataTransfer.setData('text/plain', g.id);
+                        row.classList.add('opacity-50');
+                    });
+                    row.addEventListener('dragend', () => {
+                        row.classList.remove('opacity-50');
+                        list.querySelectorAll('[data-group-id]').forEach(el => {
+                            el.classList.remove('ring-2', 'ring-primary/20');
+                        });
+                    });
+                    row.addEventListener('dragover', (e) => {
+                        e.preventDefault();
+                        e.dataTransfer.dropEffect = 'move';
+                        row.classList.add('ring-2', 'ring-primary/20');
+                    });
+                    row.addEventListener('dragleave', () => {
+                        row.classList.remove('ring-2', 'ring-primary/20');
+                    });
+                    row.addEventListener('drop', (e) => {
+                        e.preventDefault();
+                        row.classList.remove('ring-2', 'ring-primary/20');
+
+                        const draggedId = e.dataTransfer.getData('text/plain');
+                        if (!draggedId || draggedId === g.id) return;
+
+                        const fromIndex = currentGroups.findIndex(x => x.id === draggedId);
+                        const toIndex = currentGroups.findIndex(x => x.id === g.id);
+                        if (fromIndex < 0 || toIndex < 0) return;
+
+                        const [moved] = currentGroups.splice(fromIndex, 1);
+                        currentGroups.splice(toIndex, 0, moved);
+                        persistGroupOrder();
+                        renderGroups();
+                    });
 
                     const drag = document.createElement('span');
                     drag.className = 'material-symbols-outlined text-gray-300 cursor-grab active:cursor-grabbing select-none';
@@ -1874,24 +2229,17 @@
                     row.appendChild(drag);
 
                     const colorDot = document.createElement('div');
-                    colorDot.className = 'w-3 h-3 rounded-full cursor-pointer hover:ring-2 hover:ring-offset-2 transition-all';
+                    colorDot.className = 'group-color-dot w-3 h-3 rounded-full cursor-pointer hover:ring-2 hover:ring-offset-2 transition-all';
                     colorDot.style.backgroundColor = g.color || '#82ccbd';
                     row.appendChild(colorDot);
 
-                    const colorPicker = document.createElement('div');
-                    colorPicker.className = 'color-picker-popup absolute top-10 left-12 z-10 bg-white dark:bg-[#25312f] shadow-xl border border-black/5 p-2 rounded-lg gap-1.5';
-                    GROUP_COLOR_OPTIONS.forEach(c => {
-                        const swatch = document.createElement('div');
-                        swatch.className = 'size-5 rounded-full cursor-pointer hover:scale-110 transition-transform';
-                        if (c === (g.color || '#82ccbd')) swatch.classList.add('ring-2', 'ring-primary');
-                        swatch.style.backgroundColor = c;
-                        swatch.addEventListener('click', () => {
-                            g.color = c;
-                            colorPicker.classList.remove('active');
-                            updateGroup(g);
-                            renderGroups();
-                        });
-                        colorPicker.appendChild(swatch);
+                    const colorPicker = createColorPickerPopup(g.color || '#82ccbd', (color) => {
+                        g.color = color;
+                        colorDot.style.backgroundColor = color;
+                        colorPicker.updateSelectedColor(color);
+                        colorPicker.classList.remove('active');
+                        updateGroup(g);
+                        renderGroups();
                     });
                     row.appendChild(colorPicker);
                     colorDot.addEventListener('click', (e) => {
@@ -1944,26 +2292,15 @@
                 addRow.appendChild(drag);
 
                 const colorDot = document.createElement('div');
-                colorDot.className = 'w-3 h-3 rounded-full cursor-pointer hover:ring-2 hover:ring-offset-2 transition-all shrink-0';
+                colorDot.className = 'group-color-dot w-3 h-3 rounded-full cursor-pointer hover:ring-2 hover:ring-offset-2 transition-all shrink-0';
                 colorDot.style.backgroundColor = selectedNewColor;
                 addRow.appendChild(colorDot);
 
-                const colorPicker = document.createElement('div');
-                colorPicker.className = 'color-picker-popup absolute top-10 left-12 z-10 bg-white dark:bg-[#25312f] shadow-xl border border-black/5 p-2 rounded-lg gap-1.5';
-                GROUP_COLOR_OPTIONS.forEach(c => {
-                    const swatch = document.createElement('div');
-                    swatch.className = 'size-5 rounded-full cursor-pointer hover:scale-110 transition-transform';
-                    if (c === selectedNewColor) swatch.classList.add('ring-2', 'ring-primary');
-                    swatch.style.backgroundColor = c;
-                    swatch.addEventListener('click', (e) => {
-                        e.stopPropagation();
-                        selectedNewColor = c;
-                        colorDot.style.backgroundColor = c;
-                        colorPicker.querySelectorAll('div').forEach(s => s.classList.remove('ring-2', 'ring-primary'));
-                        swatch.classList.add('ring-2', 'ring-primary');
-                        colorPicker.classList.remove('active');
-                    });
-                    colorPicker.appendChild(swatch);
+                const colorPicker = createColorPickerPopup(selectedNewColor, (color) => {
+                    selectedNewColor = color;
+                    colorDot.style.backgroundColor = color;
+                    colorPicker.updateSelectedColor(color);
+                    colorPicker.classList.remove('active');
                 });
                 addRow.appendChild(colorPicker);
                 colorDot.addEventListener('click', (e) => {
@@ -2010,7 +2347,14 @@
                       .then(data => {
                           if (data && data.data) {
                               const g = data.data;
-                              currentGroups.push({ id: g.id, name: g.description || g.id, color: g.color || selectedNewColor, visibility: g.visibility || 'public' });
+                              const nextSortOrder = currentGroups.length + 1;
+                              currentGroups.push({
+                                  id: g.id,
+                                  name: g.description || g.id,
+                                  color: g.color || selectedNewColor,
+                                  visibility: g.visibility || 'public',
+                                  sortOrder: typeof g.sort_order === 'number' ? g.sort_order : nextSortOrder
+                              });
                           }
                           renderGroups();
                       })
@@ -2029,7 +2373,7 @@
             }
 
             document.addEventListener('click', (e) => {
-                if (!e.target.closest('.color-picker-popup') && !e.target.closest('.w-3.h-3')) {
+                if (!e.target.closest('.color-picker-popup') && !e.target.closest('.group-color-dot')) {
                     document.querySelectorAll('.color-picker-popup.active').forEach(p => p.classList.remove('active'));
                 }
             }, { once: true });
@@ -2037,11 +2381,27 @@
 
         function updateGroup(g) {
             if (!g.id || g.id.startsWith('g')) return;
-            fetch(`/api/v1/groups/${g.id}`, {
+            return fetch(`/api/v1/groups/${g.id}`, {
                 method: 'PATCH',
                 headers: authHeaders(),
-                body: JSON.stringify({ description: g.name, color: g.color, visibility: g.visibility })
+                body: JSON.stringify({ description: g.name, color: g.color, visibility: g.visibility, sort_order: g.sortOrder })
             }).catch(() => {});
+        }
+
+        function refreshActiveDayTasks() {
+            if (!(selectedDate instanceof Date)) return;
+            fetchTasks(selectedDate);
+        }
+
+        function persistGroupOrder() {
+            const updates = currentGroups.map((g, idx) => {
+                g.sortOrder = idx + 1;
+                return updateGroup(g);
+            });
+            groupOrder = currentGroups.map(g => g.id);
+            Promise.all(updates).finally(() => {
+                refreshActiveDayTasks();
+            });
         }
 
         function confirmDeleteGroup(groupId) {
@@ -2049,10 +2409,12 @@
             fetch(`/api/v1/groups/${groupId}`, { method: 'DELETE', headers: authHeaders() })
                 .then(() => {
                     currentGroups = currentGroups.filter(g => g.id !== groupId);
+                    persistGroupOrder();
                     renderGroups();
                 })
                 .catch(() => {
                     currentGroups = currentGroups.filter(g => g.id !== groupId);
+                    persistGroupOrder();
                     renderGroups();
                 });
         }

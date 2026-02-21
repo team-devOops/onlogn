@@ -28,7 +28,11 @@ public class GroupService {
     public Page<GroupEntity> listGroups(UUID ownerUserId, int offset, int limit) {
         int page = offset / Math.max(limit, 1);
         PageRequest pageRequest = PageRequest.of(page, limit,
-                Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id")));
+                Sort.by(
+                        Sort.Order.asc("sortOrder").nullsLast(),
+                        Sort.Order.desc("createdAt"),
+                        Sort.Order.desc("id")
+                ));
         return groupRepository.findByOwnerUserId(ownerUserId, pageRequest);
     }
 
@@ -40,6 +44,9 @@ public class GroupService {
         group.setDescription(description);
         group.setColor(color);
         group.setIcon(icon);
+        Integer maxSortOrder = groupRepository.findMaxSortOrderByOwnerUserId(ownerUserId);
+        int nextSortOrder = maxSortOrder == null ? 1 : maxSortOrder + 1;
+        group.setSortOrder(nextSortOrder);
         return groupRepository.save(group);
     }
 
@@ -54,7 +61,8 @@ public class GroupService {
 
     @Transactional
     public GroupEntity updateGroup(UUID groupId, UUID ownerUserId,
-                                   String visibility, String description, String color, String icon) {
+                                   String visibility, String description, String color, String icon,
+                                   Integer sortOrder) {
         GroupEntity group = getGroup(groupId, ownerUserId);
 
         if (visibility != null) {
@@ -68,6 +76,9 @@ public class GroupService {
         }
         if (icon != null) {
             group.setIcon(icon);
+        }
+        if (sortOrder != null) {
+            group.setSortOrder(sortOrder);
         }
 
         return groupRepository.save(group);

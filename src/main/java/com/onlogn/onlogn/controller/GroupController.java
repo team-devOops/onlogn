@@ -45,6 +45,7 @@ public class GroupController {
             String description,
             String color,
             String icon,
+            @JsonProperty("sort_order") Integer sortOrder,
             @JsonProperty("created_at") String createdAt,
             @JsonProperty("updated_at") String updatedAt
     ) {
@@ -62,7 +63,8 @@ public class GroupController {
             String visibility,
             String description,
             String color,
-            String icon
+            String icon,
+            @JsonProperty("sort_order") Integer sortOrder
     ) {
     }
 
@@ -153,7 +155,7 @@ public class GroupController {
 
         GroupEntity group = groupService.updateGroup(
                 groupId, userId, request.visibility(), request.description(),
-                request.color(), request.icon());
+                request.color(), request.icon(), request.sortOrder());
 
         return ResponseEntity.ok(DataMetaEnvelope.of(toGroupResponse(group)));
     }
@@ -184,6 +186,7 @@ public class GroupController {
                 group.getDescription(),
                 group.getColor(),
                 group.getIcon(),
+                group.getSortOrder(),
                 group.getCreatedAt().toString(),
                 group.getUpdatedAt().toString()
         );

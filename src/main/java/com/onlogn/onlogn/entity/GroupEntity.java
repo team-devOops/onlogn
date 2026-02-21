@@ -24,6 +24,9 @@ public class GroupEntity {
 
     private String icon;
 
+    @Column(name = "sort_order")
+    private Integer sortOrder;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -53,6 +56,8 @@ public class GroupEntity {
     public void setColor(String color) { this.color = color; }
     public String getIcon() { return icon; }
     public void setIcon(String icon) { this.icon = icon; }
+    public Integer getSortOrder() { return sortOrder; }
+    public void setSortOrder(Integer sortOrder) { this.sortOrder = sortOrder; }
     public Instant getCreatedAt() { return createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }
 }

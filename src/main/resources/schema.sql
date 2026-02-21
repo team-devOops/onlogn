@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS "groups" (
     description     VARCHAR(2000),
     color           VARCHAR(32),
     icon            VARCHAR(64),
+    sort_order      INTEGER,
     created_at      TIMESTAMP       NOT NULL,
     updated_at      TIMESTAMP       NOT NULL,
     CONSTRAINT fk_groups_owner FOREIGN KEY (owner_user_id) REFERENCES users(id)
