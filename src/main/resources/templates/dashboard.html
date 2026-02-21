@@ -388,6 +388,24 @@
     </div>
 </div>
 
+<div id="logout-confirm-popup" class="hidden fixed inset-0 z-[120] items-center justify-center p-4">
+    <div id="logout-confirm-backdrop" class="absolute inset-0 bg-black/60 backdrop-blur-[2px]"></div>
+    <div class="relative bg-white dark:bg-[#1c2624] w-full max-w-[320px] p-8 rounded-[1.5rem] shadow-2xl flex flex-col items-center gap-8 mx-auto my-auto">
+        <div class="flex flex-col items-center gap-2">
+            <span class="material-symbols-outlined text-primary text-3xl opacity-80">logout</span>
+            <p class="text-[17px] font-semibold text-center mt-2">로그아웃 하시겠습니까?</p>
+        </div>
+        <div class="flex flex-col w-full gap-3">
+            <button id="btn-logout-confirm" class="w-full py-3.5 bg-primary text-white text-[15px] font-bold rounded-xl hover:bg-[#72b9ab] transition-all shadow-lg shadow-primary/10">
+                로그아웃
+            </button>
+            <button id="btn-logout-cancel" class="w-full py-2.5 text-center text-[14px] font-medium text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 cursor-pointer transition-colors">
+                취소
+            </button>
+        </div>
+    </div>
+</div>
+
 <script th:inline="javascript">
     const API_BASE = /*[[${apiBase}]]*/ '';
 </script>
@@ -791,9 +809,7 @@
                 });
             });
 
-            document.getElementById('btn-logout').addEventListener('click', () => {
-                window.location.href = `${API_BASE}/logout`;
-            });
+            document.getElementById('btn-logout').addEventListener('click', openLogoutConfirm);
 
             document.getElementById('btn-add-group').addEventListener('click', () => {
                 const name = prompt('새 그룹 이름을 입력하세요:');
@@ -807,6 +823,26 @@
 
             window._settingsInitialState = { getBio: () => initialBio, setBio: v => initialBio = v, getPublic: () => initialPublic, setPublic: v => initialPublic = v };
         }
+
+        function openLogoutConfirm() {
+            const popup = document.getElementById('logout-confirm-popup');
+            popup.classList.remove('hidden');
+            popup.style.display = 'flex';
+        }
+
+        function closeLogoutConfirm() {
+            const popup = document.getElementById('logout-confirm-popup');
+            popup.classList.add('hidden');
+            popup.style.display = '';
+        }
+
+        (function initLogoutConfirm() {
+            document.getElementById('btn-logout-confirm').addEventListener('click', () => {
+                window.location.href = `${API_BASE}/logout`;
+            });
+            document.getElementById('btn-logout-cancel').addEventListener('click', closeLogoutConfirm);
+            document.getElementById('logout-confirm-backdrop').addEventListener('click', closeLogoutConfirm);
+        })();
 
         function openSettings() {
             const modal = document.getElementById('settings-modal');
