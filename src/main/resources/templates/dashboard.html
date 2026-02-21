@@ -231,7 +231,7 @@
 
                 <div id="task-list" class="space-y-1"></div>
 
-                <div id="today-insight" class="mt-8 md:mt-12 p-4 md:p-5 bg-primary/5 rounded-xl border border-primary/10 relative overflow-hidden group">
+                <div id="today-insight" class="hidden mt-8 md:mt-12 p-4 md:p-5 bg-primary/5 rounded-xl border border-primary/10 relative overflow-hidden group">
                     <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform">
                         <span class="material-symbols-outlined text-4xl md:text-5xl text-primary">auto_awesome</span>
                     </div>
@@ -676,6 +676,13 @@
 
             const completed = tasks.filter(t => t.completed).length;
             document.getElementById('task-progress').textContent = `${completed} / ${tasks.length} 완료`;
+
+            const insightEl = document.getElementById('today-insight');
+            if (tasks.length === 0) {
+                insightEl.classList.add('hidden');
+            } else {
+                insightEl.classList.remove('hidden');
+            }
 
             const grouped = {};
             tasks.forEach(t => {
