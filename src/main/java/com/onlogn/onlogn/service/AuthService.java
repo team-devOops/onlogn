@@ -39,10 +39,15 @@ public class AuthService {
 
     @Transactional
     public Map<String, Object> exchangeGithubCode(String code) {
+        return exchangeGithubCode(code, null);
+    }
+
+    @Transactional
+    public Map<String, Object> exchangeGithubCode(String code, String redirectUri) {
         UserEntity user;
 
         if (githubOAuthClient.isConfigured()) {
-            String ghAccessToken = githubOAuthClient.exchangeCodeForToken(code);
+            String ghAccessToken = githubOAuthClient.exchangeCodeForToken(code, redirectUri != null ? redirectUri : "");
             GithubOAuthClient.GithubUser ghUser = githubOAuthClient.fetchUser(ghAccessToken);
             user = findOrCreateFromGithub(ghUser);
         } else {

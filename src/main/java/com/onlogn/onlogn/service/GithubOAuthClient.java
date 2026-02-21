@@ -34,11 +34,12 @@ public class GithubOAuthClient {
                 && clientSecret != null && !clientSecret.isBlank();
     }
 
-    public String exchangeCodeForToken(String code) {
+    public String exchangeCodeForToken(String code, String redirectUri) {
         Map<String, String> body = Map.of(
                 "client_id", clientId,
                 "client_secret", clientSecret,
-                "code", code
+                "code", code,
+                "redirect_uri", redirectUri
         );
 
         @SuppressWarnings("unchecked")

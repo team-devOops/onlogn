@@ -27,7 +27,7 @@ public class OAuthPageController {
 
     @GetMapping("/oauth2/authorization/github")
     public String redirectToGithub() {
-        String redirectUri = URLEncoder.encode("http://localhost:3000/login/oauth2/callback", StandardCharsets.UTF_8);
+        String redirectUri = URLEncoder.encode(CALLBACK_URI, StandardCharsets.UTF_8);
         String scope = URLEncoder.encode("read:user user:email", StandardCharsets.UTF_8);
         return "redirect:https://github.com/login/oauth/authorize"
                 + "?client_id=" + clientId
@@ -35,9 +35,11 @@ public class OAuthPageController {
                 + "&scope=" + scope;
     }
 
+    private static final String CALLBACK_URI = "http://localhost:3000/login/oauth2/callback";
+
     @GetMapping("/login/oauth2/callback")
     public String handleCallback(@RequestParam("code") String code, Model model) {
-        Map<String, Object> tokens = authService.exchangeGithubCode(code);
+        Map<String, Object> tokens = authService.exchangeGithubCode(code, CALLBACK_URI);
         model.addAttribute("accessToken", tokens.get("access_token"));
         model.addAttribute("refreshToken", tokens.get("refresh_token"));
         model.addAttribute("expiresIn", tokens.get("expires_in"));
