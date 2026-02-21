@@ -44,6 +44,12 @@
         #insight-panel.hidden, #todo-panel.hidden {
             display: none;
         }
+        .emoji-picker {
+            display: none;
+        }
+        .emoji-picker.active {
+            display: flex;
+        }
     </style>
 </head>
 <body class="min-h-screen">
@@ -123,14 +129,19 @@
                 </div>
             </div>
 
-            <div class="hidden h-full" id="todo-panel">
-                <div class="flex items-center gap-3 mb-6">
-                    <button id="btn-back-insights" class="size-8 flex items-center justify-center rounded-lg hover:bg-primary/10 border border-primary/10 transition-colors">
-                        <span class="material-symbols-outlined text-base">arrow_back</span>
-                    </button>
-                    <h2 id="selected-date-text" class="text-lg font-bold"></h2>
+            <div class="hidden" id="todo-panel">
+                <div class="p-6 rounded-xl border border-primary/20 bg-white dark:bg-primary/10 shadow-sm min-h-[400px]">
+                    <div class="flex items-center gap-3 mb-8">
+                        <button id="btn-back-insights" class="size-9 flex items-center justify-center rounded-full bg-primary/10 hover:bg-primary/20 text-primary transition-colors">
+                            <span class="material-symbols-outlined text-lg">arrow_back</span>
+                        </button>
+                        <div>
+                            <h2 id="selected-date-text" class="text-lg font-bold"></h2>
+                            <p class="text-[10px] font-bold text-primary uppercase tracking-widest">일일 할 일 목록</p>
+                        </div>
+                    </div>
+                    <div id="todo-list" class="space-y-6"></div>
                 </div>
-                <div id="todo-list" class="space-y-3"></div>
             </div>
         </div>
     </div>
@@ -204,19 +215,18 @@
             return heatmap;
         }
 
+        const EMOJI_OPTIONS = ['👍', '🔥', '👏', '❤️', '🎉', '🙏', '✨', '🧠', '💪', '🎯', '💡', '🚀'];
+
         function generateDummyTodos(dateStr) {
-            const titles = [
-                '랜딩 페이지 타이포그래피 시스템 고도화',
-                '아침 명상 및 저널링 세션',
-                '1분기 목표 검토 및 새 목표 설정',
-                '컴포넌트 라이브러리 리팩토링',
-                '팀 주간 회의 준비'
+            const items = [
+                { title: '랜딩 페이지 타이포그래피 시스템 고도화', tags: ['디자인'], status: 'done', link: 'figma.com/file/landing-sys...', reactions: [{ emoji: '✨', count: 14 }, { emoji: '🎨', count: 8 }] },
+                { title: '아침 명상 및 저널링 세션', tags: ['일상'], status: 'done', link: 'notion.so/morning-ritual...', reactions: [{ emoji: '🌿', count: 21 }] },
+                { title: '1분기 목표 검토 및 4월 목표 설정', tags: ['계획'], status: 'done', link: null, reactions: [{ emoji: '📈', count: 5 }, { emoji: '🚀', count: 12 }] },
+                { title: '컴포넌트 라이브러리 리팩토링', tags: ['개발'], status: 'todo', link: 'github.com/org/ui-lib/pull/42', reactions: [{ emoji: '💻', count: 3 }] },
+                { title: '팀 주간 회의 준비', tags: ['계획'], status: 'todo', link: null, reactions: [] }
             ];
-            const count = Math.floor(Math.random() * 4) + 1;
-            return titles.slice(0, count).map((title, i) => ({
-                title: title,
-                status: Math.random() > 0.3 ? 'done' : 'todo'
-            }));
+            const count = Math.floor(Math.random() * 3) + 2;
+            return items.slice(0, count);
         }
 
         function applyProfile(p) {
@@ -381,16 +391,59 @@
                 return;
             }
 
-            list.innerHTML = tasks.map(t => {
-                const isDone = t.status === 'done';
-                const checkIcon = isDone
-                    ? '<div class="size-6 flex items-center justify-center rounded-full bg-primary text-white"><span class="material-symbols-outlined text-xs font-bold">check</span></div>'
-                    : '<div class="size-6 flex items-center justify-center rounded-full border-2 border-primary/30"></div>';
+            const grouped = {};
+            tasks.forEach(t => {
+                const tag = (t.tags && t.tags.length > 0) ? t.tags[0] : '기본';
+                if (!grouped[tag]) grouped[tag] = [];
+                grouped[tag].push(t);
+            });
+
+            list.innerHTML = Object.entries(grouped).map(([tag, items]) => {
+                const tasksHtml = items.map(t => {
+                    const isDone = t.status === 'done';
+                    const checkIcon = isDone
+                        ? '<div class="size-6 shrink-0 flex items-center justify-center rounded-full bg-primary text-white"><span class="material-symbols-outlined text-xs font-bold">check</span></div>'
+                        : '<div class="size-6 shrink-0 flex items-center justify-center rounded-full border-2 border-primary/30"></div>';
+
+                    const linkHtml = t.link ? `<a class="inline-flex items-center gap-1 text-[11px] text-[#5f867e] hover:text-primary transition-colors max-w-[150px]" href="#"><span class="material-symbols-outlined text-[12px]">link</span><span class="truncate">${escapeHtml(t.link)}</span></a>` : '';
+
+                    const reactions = (t.reactions || []).map(r =>
+                        `<div class="flex items-center gap-1 px-2 py-0.5 rounded-md bg-white/50 dark:bg-white/10 text-[10px] font-bold"><span>${r.emoji}</span> ${r.count}</div>`
+                    ).join('');
+
+                    const taskId = 'task-' + Math.random().toString(36).substring(2, 9);
+                    const pickerEmojis = EMOJI_OPTIONS.map(e =>
+                        `<button class="px-2 py-1 rounded-md bg-white/40 hover:bg-white/80 dark:bg-white/5 dark:hover:bg-white/20 text-sm transition-all" data-emoji="${e}">${e}</button>`
+                    ).join('');
+
+                    return `
+                        <div class="group flex flex-col gap-3 p-4 rounded-xl bg-primary/5 border border-primary/10 hover:border-primary/30 transition-all">
+                            <div class="flex items-center gap-4">
+                                ${checkIcon}
+                                <div class="flex-1 min-w-0">
+                                    <div class="flex items-baseline gap-2 flex-wrap mb-1">
+                                        <p class="text-base font-bold">${escapeHtml(t.title)}</p>
+                                        ${linkHtml}
+                                    </div>
+                                    <div class="flex flex-wrap items-center gap-2">
+                                        ${reactions}
+                                        <button class="size-5 flex items-center justify-center rounded-md bg-primary/10 hover:bg-primary/20 transition-colors text-primary" onclick="this.closest('.group').querySelector('.emoji-picker').classList.toggle('active')">
+                                            <span class="material-symbols-outlined text-xs">add</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="emoji-picker flex-wrap gap-1.5 pt-2 border-t border-primary/5" id="${taskId}-picker">
+                                ${pickerEmojis}
+                            </div>
+                        </div>`;
+                }).join('');
 
                 return `
-                    <div class="group flex items-center gap-4 p-4 rounded-xl border border-primary/5 bg-white/40 dark:bg-primary/5 hover:border-primary/20 transition-all">
-                        ${checkIcon}
-                        <p class="flex-1 text-sm font-medium ${isDone ? 'line-through opacity-40' : ''}">${escapeHtml(t.title)}</p>
+                    <div class="relative pl-6 border-l-2 border-primary/20">
+                        <div class="absolute -left-[9px] top-0 size-4 rounded-full bg-primary border-4 border-white dark:border-background-dark"></div>
+                        <h4 class="text-xs font-bold text-primary uppercase tracking-widest mb-3 opacity-70">${escapeHtml(tag)}</h4>
+                        ${tasksHtml}
                     </div>`;
             }).join('');
         }
