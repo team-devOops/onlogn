@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS users (
     display_name    VARCHAR(255)    NOT NULL,
     avatar_url      VARCHAR(1024),
     bio             VARCHAR(2000),
+    visibility      VARCHAR(16)     NOT NULL DEFAULT 'public',
     timezone        VARCHAR(64)     NOT NULL DEFAULT 'UTC',
     github_id       VARCHAR(255)    UNIQUE,
     created_at      TIMESTAMP       NOT NULL,
@@ -68,15 +69,14 @@ CREATE TABLE IF NOT EXISTS task_reference_links (
 -- 6. reactions
 CREATE TABLE IF NOT EXISTS reactions (
     id              UUID            PRIMARY KEY,
-    user_id         UUID            NOT NULL,
+    user_id         UUID,
     task_id         UUID            NOT NULL,
     emoji           VARCHAR(64)     NOT NULL,
     active          BOOLEAN         NOT NULL DEFAULT TRUE,
     created_at      TIMESTAMP       NOT NULL,
     updated_at      TIMESTAMP       NOT NULL,
     CONSTRAINT fk_reactions_user FOREIGN KEY (user_id) REFERENCES users(id),
-    CONSTRAINT fk_reactions_task FOREIGN KEY (task_id) REFERENCES tasks(id),
-    CONSTRAINT uq_reactions_user_task_emoji UNIQUE (user_id, task_id, emoji)
+    CONSTRAINT fk_reactions_task FOREIGN KEY (task_id) REFERENCES tasks(id)
 );
 
 -- 7. refresh_tokens

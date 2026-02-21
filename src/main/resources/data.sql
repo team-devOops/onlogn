@@ -3,10 +3,10 @@
 -- ==============================================
 
 -- ── users ──
-INSERT INTO users (id, profile_slug, email, display_name, avatar_url, bio, timezone, github_id, created_at, updated_at) VALUES
-('11111111-1111-1111-1111-111111111111', 'arivera_dev', 'alex@example.com', '알렉스 리베라', 'https://cdn.onlogn.com/avatars/alex.png', '크리에이터와 디지털 가드너를 위한 미니멀한 도구를 만듭니다. 복잡한 세상 속 단순함을 하나씩 큐레이션합니다.', 'Asia/Seoul', 'gh_alex_001', TIMESTAMP '2024-01-15 09:00:00', TIMESTAMP '2024-03-13 08:00:00'),
-('22222222-2222-2222-2222-222222222222', 'jpark_dev', 'jpark@example.com', '박지현', 'https://cdn.onlogn.com/avatars/jpark.png', '풀스택 개발자. 커피와 코드를 좋아합니다.', 'Asia/Seoul', 'gh_jpark_002', TIMESTAMP '2024-02-01 10:00:00', TIMESTAMP '2024-03-13 08:00:00'),
-('33333333-3333-3333-3333-333333333333', 'mkim_design', 'mkim@example.com', '김민수', NULL, NULL, 'UTC', 'gh_mkim_003', TIMESTAMP '2024-02-20 11:00:00', TIMESTAMP '2024-03-13 08:00:00');
+INSERT INTO users (id, profile_slug, email, display_name, avatar_url, bio, visibility, timezone, github_id, created_at, updated_at) VALUES
+('11111111-1111-1111-1111-111111111111', 'arivera_dev', 'alex@example.com', '알렉스 리베라', 'https://cdn.onlogn.com/avatars/alex.png', '크리에이터와 디지털 가드너를 위한 미니멀한 도구를 만듭니다. 복잡한 세상 속 단순함을 하나씩 큐레이션합니다.', 'public', 'Asia/Seoul', 'gh_alex_001', TIMESTAMP '2024-01-15 09:00:00', TIMESTAMP '2024-03-13 08:00:00'),
+('22222222-2222-2222-2222-222222222222', 'jpark_dev', 'jpark@example.com', '박지현', 'https://cdn.onlogn.com/avatars/jpark.png', '풀스택 개발자. 커피와 코드를 좋아합니다.', 'public', 'Asia/Seoul', 'gh_jpark_002', TIMESTAMP '2024-02-01 10:00:00', TIMESTAMP '2024-03-13 08:00:00'),
+('33333333-3333-3333-3333-333333333333', 'mkim_design', 'mkim@example.com', '김민수', NULL, NULL, 'public', 'UTC', 'gh_mkim_003', TIMESTAMP '2024-02-20 11:00:00', TIMESTAMP '2024-03-13 08:00:00');
 
 -- ── groups (알렉스) ──
 INSERT INTO "groups" (id, owner_user_id, visibility, description, color, icon, created_at, updated_at) VALUES
