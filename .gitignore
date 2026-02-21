@@ -40,3 +40,4 @@ out/
 skills/
 .sisyphus
 .env
+mysql-data/
