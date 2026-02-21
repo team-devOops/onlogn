@@ -91,6 +91,11 @@
                 <h3 class="text-xs font-bold uppercase tracking-wider text-primary mb-1">AI 생산성 요약</h3>
                 <p id="ai-summary-text" class="text-sm md:text-base font-medium leading-relaxed opacity-80"></p>
             </div>
+            <div id="ai-period-toggle" class="flex bg-white/50 dark:bg-background-dark/50 p-1 rounded-lg shrink-0">
+                <button data-period="weekly" class="ai-period-btn px-3 py-1.5 text-[11px] font-bold uppercase rounded-md transition-all">주간</button>
+                <button data-period="monthly" class="ai-period-btn px-3 py-1.5 text-[11px] font-bold uppercase rounded-md bg-white dark:bg-primary/20 shadow-sm">월간</button>
+                <button data-period="30days" class="ai-period-btn px-3 py-1.5 text-[11px] font-bold uppercase rounded-md transition-all">30일</button>
+            </div>
         </div>
     </section>
 
@@ -182,6 +187,7 @@
             document.getElementById('activity-prev').addEventListener('click', () => changeActivityMonth(-1));
             document.getElementById('activity-next').addEventListener('click', () => changeActivityMonth(1));
             document.getElementById('btn-back-insights').addEventListener('click', showInsights);
+            initAiPeriodToggle();
 
             fetchProfile();
             renderActivityMonth();
@@ -203,6 +209,13 @@
             ],
             keywords: ['UI 디자인', 'React', '가드닝', '미니멀리즘', '타이포그래피']
         };
+
+        const DUMMY_AI_SUMMARIES = {
+            weekly: '이번 주 알렉스님은 디자인 작업에 집중하며 12개의 할 일 중 11개를 완료했습니다. 특히 수요일 오전에 가장 높은 생산성을 보였습니다.',
+            monthly: '최근 알렉스님의 제품 디자인 일관성이 매우 뛰어납니다. 몰입이 필요한 과업의 85%를 정오 이전에 완료하며 강력한 오전 추진력을 보여주고 있습니다.',
+            '30days': '지난 30일간 알렉스님은 총 142개의 할 일을 처리했으며, 개발과 디자인 영역의 균형이 이전 대비 20% 개선되었습니다. 주말 작업량이 소폭 증가하는 추세입니다.'
+        };
+        let currentAiPeriod = 'monthly';
 
         function generateDummyHeatmap() {
             const heatmap = {};
@@ -227,6 +240,35 @@
             ];
             const count = Math.floor(Math.random() * 3) + 2;
             return items.slice(0, count);
+        }
+
+        function initAiPeriodToggle() {
+            document.querySelectorAll('.ai-period-btn').forEach(btn => {
+                btn.addEventListener('click', () => switchAiPeriod(btn.dataset.period));
+            });
+        }
+
+        function switchAiPeriod(period) {
+            currentAiPeriod = period;
+            document.querySelectorAll('.ai-period-btn').forEach(btn => {
+                const isActive = btn.dataset.period === period;
+                btn.classList.toggle('bg-white', isActive);
+                btn.classList.toggle('dark:bg-primary/20', isActive);
+                btn.classList.toggle('shadow-sm', isActive);
+            });
+
+            fetch(`${API_BASE}/api/v1/profiles/${PROFILE_SLUG}/ai-summary?period=${period}`)
+                .then(r => r.ok ? r.json() : null)
+                .then(resp => {
+                    if (resp && resp.data && resp.data.summary) {
+                        document.getElementById('ai-summary-text').textContent = resp.data.summary;
+                    } else {
+                        document.getElementById('ai-summary-text').textContent = DUMMY_AI_SUMMARIES[period] || '';
+                    }
+                })
+                .catch(() => {
+                    document.getElementById('ai-summary-text').textContent = DUMMY_AI_SUMMARIES[period] || '';
+                });
         }
 
         function applyProfile(p) {
