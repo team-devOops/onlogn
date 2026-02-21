@@ -176,30 +176,79 @@
             renderActivityMonth();
         }
 
+        const DUMMY_PROFILE = {
+            display_name: '알렉스 리베라',
+            profile_slug: PROFILE_SLUG || 'arivera_dev',
+            bio: '크리에이터와 디지털 가드너를 위한 미니멀한 도구를 만듭니다.\n복잡한 세상 속 단순함을 하나씩 큐레이션합니다.',
+            avatar_url: 'https://lh3.googleusercontent.com/aida-public/AB6AXuB735EWX_nztGNDdVckqgadscOxj7OAUGbGJjFh2Y47d8ltwNFD5clzpYqgoZ_G-zP9mia3V9ronS4UMK8_DUKGox12q99VUq_QJ8ur5Ay1Cm8wXg_HX_eenr1ryhNY8zvO8YMS8uBAMtav2SHrxUkPBclexGnHnrzAKyyV_ffr3vI9MUv6OajIV9E6DjPAo9BHyEXQrOAk1ExL27M7SdY12V675gVQ1xkX_5G86zQC75cRJ7WhniGnGFTDWU_zTbVAFm3p9OI5DTK8',
+            total_tasks: 1284,
+            completion_rate: 94.2,
+            streak_days: 18,
+            ai_summary: '최근 알렉스님의 제품 디자인 일관성이 매우 뛰어납니다. 몰입이 필요한 과업의 85%를 정오 이전에 완료하며 강력한 오전 추진력을 보여주고 있습니다.',
+            group_distribution: [
+                { name: '디자인', percentage: 45 },
+                { name: '개발', percentage: 30 },
+                { name: '개인', percentage: 25 }
+            ],
+            keywords: ['UI 디자인', 'React', '가드닝', '미니멀리즘', '타이포그래피']
+        };
+
+        function generateDummyHeatmap() {
+            const heatmap = {};
+            const daysInMonth = new Date(actYear, actMonth + 1, 0).getDate();
+            for (let d = 1; d <= daysInMonth; d++) {
+                const dateStr = formatDate(new Date(actYear, actMonth, d));
+                const r = Math.random();
+                if (r > 0.3) heatmap[dateStr] = Math.ceil(Math.random() * 8);
+            }
+            return heatmap;
+        }
+
+        function generateDummyTodos(dateStr) {
+            const titles = [
+                '랜딩 페이지 타이포그래피 시스템 고도화',
+                '아침 명상 및 저널링 세션',
+                '1분기 목표 검토 및 새 목표 설정',
+                '컴포넌트 라이브러리 리팩토링',
+                '팀 주간 회의 준비'
+            ];
+            const count = Math.floor(Math.random() * 4) + 1;
+            return titles.slice(0, count).map((title, i) => ({
+                title: title,
+                status: Math.random() > 0.3 ? 'done' : 'todo'
+            }));
+        }
+
+        function applyProfile(p) {
+            document.getElementById('profile-name').textContent = p.display_name || '';
+            document.getElementById('profile-username').textContent = '@' + (p.profile_slug || PROFILE_SLUG);
+            document.getElementById('profile-bio').textContent = p.bio || '';
+            if (p.avatar_url) document.getElementById('profile-avatar').src = p.avatar_url;
+
+            if (p.total_tasks !== undefined) document.getElementById('stat-total').textContent = p.total_tasks.toLocaleString();
+            if (p.completion_rate !== undefined) document.getElementById('stat-rate').textContent = Math.round(p.completion_rate) + '%';
+            if (p.streak_days !== undefined) document.getElementById('stat-streak').textContent = p.streak_days;
+
+            if (p.ai_summary) {
+                document.getElementById('ai-summary-text').textContent = p.ai_summary;
+                document.getElementById('ai-summary-section').classList.remove('hidden');
+            }
+
+            renderGroupDist(p.group_distribution || []);
+            renderKeywords(p.keywords || []);
+        }
+
         function fetchProfile() {
             fetch(`${API_BASE}/api/v1/profiles/${PROFILE_SLUG}`)
                 .then(r => r.ok ? r.json() : null)
                 .then(resp => {
-                    if (!resp || !resp.data) return;
-                    const p = resp.data;
-                    document.getElementById('profile-name').textContent = p.display_name || '';
-                    document.getElementById('profile-username').textContent = '@' + (p.profile_slug || PROFILE_SLUG);
-                    document.getElementById('profile-bio').textContent = p.bio || '';
-                    if (p.avatar_url) document.getElementById('profile-avatar').src = p.avatar_url;
-
-                    if (p.total_tasks !== undefined) document.getElementById('stat-total').textContent = p.total_tasks.toLocaleString();
-                    if (p.completion_rate !== undefined) document.getElementById('stat-rate').textContent = Math.round(p.completion_rate) + '%';
-                    if (p.streak_days !== undefined) document.getElementById('stat-streak').textContent = p.streak_days;
-
-                    if (p.ai_summary) {
-                        document.getElementById('ai-summary-text').textContent = p.ai_summary;
-                        document.getElementById('ai-summary-section').classList.remove('hidden');
+                    if (resp && resp.data) {
+                        applyProfile(resp.data);
+                    } else {
+                        applyProfile(DUMMY_PROFILE);
                     }
-
-                    renderGroupDist(p.group_distribution || []);
-                    renderKeywords(p.keywords || []);
                 })
-                .catch(() => {});
+                .catch(() => applyProfile(DUMMY_PROFILE));
         }
 
         function renderGroupDist(groups) {
@@ -245,16 +294,20 @@
             const from = formatDate(new Date(actYear, actMonth, 1));
             const to = formatDate(new Date(actYear, actMonth + 1, 0));
             fetch(`${API_BASE}/api/v1/profiles/${PROFILE_SLUG}/tasks?due_date_from=${from}&due_date_to=${to}&limit=100`)
-                .then(r => r.ok ? r.json() : { data: [] })
+                .then(r => r.ok ? r.json() : null)
                 .then(resp => {
-                    const heatmap = {};
-                    (resp.data || []).forEach(t => {
-                        const d = t.due_date;
-                        if (d) heatmap[d] = (heatmap[d] || 0) + 1;
-                    });
-                    renderActivityGrid(heatmap);
+                    if (resp && resp.data && resp.data.length > 0) {
+                        const heatmap = {};
+                        resp.data.forEach(t => {
+                            const d = t.due_date;
+                            if (d) heatmap[d] = (heatmap[d] || 0) + 1;
+                        });
+                        renderActivityGrid(heatmap);
+                    } else {
+                        renderActivityGrid(generateDummyHeatmap());
+                    }
                 })
-                .catch(() => {});
+                .catch(() => renderActivityGrid(generateDummyHeatmap()));
         }
 
         function renderActivityGrid(heatmap) {
@@ -303,9 +356,15 @@
             list.innerHTML = '<div class="py-8 text-center text-sm opacity-40">불러오는 중...</div>';
 
             fetch(`${API_BASE}/api/v1/profiles/${PROFILE_SLUG}/tasks?due_date_from=${dateStr}&due_date_to=${dateStr}&limit=50`)
-                .then(r => r.ok ? r.json() : { data: [] })
-                .then(resp => renderTodoList(resp.data || []))
-                .catch(() => renderTodoList([]));
+                .then(r => r.ok ? r.json() : null)
+                .then(resp => {
+                    if (resp && resp.data && resp.data.length > 0) {
+                        renderTodoList(resp.data);
+                    } else {
+                        renderTodoList(generateDummyTodos(dateStr));
+                    }
+                })
+                .catch(() => renderTodoList(generateDummyTodos(dateStr)));
         }
 
         function showInsights() {
