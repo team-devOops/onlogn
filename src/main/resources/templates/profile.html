@@ -230,13 +230,27 @@
 
         const EMOJI_OPTIONS = ['👍', '🔥', '👏', '❤️', '🎉', '🙏', '✨', '🧠', '💪', '🎯', '💡', '🚀'];
 
+        const TAG_COLORS = {
+            '디자인': '#fb923c',
+            '일상': '#34d399',
+            '계획': '#fbbf24',
+            '개발': '#60a5fa',
+            '미팅': '#a78bfa',
+            '기본': '#9ca3af'
+        };
+        const DEFAULT_TAG_COLOR = '#82ccbd';
+
+        function getTagColor(tag) {
+            return TAG_COLORS[tag] || DEFAULT_TAG_COLOR;
+        }
+
         function generateDummyTodos(dateStr) {
             const items = [
-                { title: '랜딩 페이지 타이포그래피 시스템 고도화', tags: ['디자인'], status: 'done', link: 'figma.com/file/landing-sys...', reactions: [{ emoji: '✨', count: 14 }, { emoji: '🎨', count: 8 }] },
-                { title: '아침 명상 및 저널링 세션', tags: ['일상'], status: 'done', link: 'notion.so/morning-ritual...', reactions: [{ emoji: '🌿', count: 21 }] },
-                { title: '1분기 목표 검토 및 4월 목표 설정', tags: ['계획'], status: 'done', link: null, reactions: [{ emoji: '📈', count: 5 }, { emoji: '🚀', count: 12 }] },
-                { title: '컴포넌트 라이브러리 리팩토링', tags: ['개발'], status: 'todo', link: 'github.com/org/ui-lib/pull/42', reactions: [{ emoji: '💻', count: 3 }] },
-                { title: '팀 주간 회의 준비', tags: ['계획'], status: 'todo', link: null, reactions: [] }
+                { title: '랜딩 페이지 타이포그래피 시스템 고도화', tags: ['디자인'], tag_color: '#fb923c', status: 'done', link: 'figma.com/file/landing-sys...', reactions: [{ emoji: '✨', count: 14 }, { emoji: '🎨', count: 8 }] },
+                { title: '아침 명상 및 저널링 세션', tags: ['일상'], tag_color: '#34d399', status: 'done', link: 'notion.so/morning-ritual...', reactions: [{ emoji: '🌿', count: 21 }] },
+                { title: '1분기 목표 검토 및 4월 목표 설정', tags: ['계획'], tag_color: '#fbbf24', status: 'done', link: null, reactions: [{ emoji: '📈', count: 5 }, { emoji: '🚀', count: 12 }] },
+                { title: '컴포넌트 라이브러리 리팩토링', tags: ['개발'], tag_color: '#60a5fa', status: 'todo', link: 'github.com/org/ui-lib/pull/42', reactions: [{ emoji: '💻', count: 3 }] },
+                { title: '팀 주간 회의 준비', tags: ['계획'], tag_color: '#fbbf24', status: 'todo', link: null, reactions: [] }
             ];
             const count = Math.floor(Math.random() * 3) + 2;
             return items.slice(0, count);
@@ -478,11 +492,21 @@
 
             list.innerHTML = '';
             Object.entries(grouped).forEach(([tag, items]) => {
+                const color = items[0].tag_color || getTagColor(tag);
                 const section = document.createElement('div');
-                section.className = 'relative pl-6 border-l-2 border-primary/20';
-                section.innerHTML = `
-                    <div class="absolute -left-[9px] top-0 size-4 rounded-full bg-primary border-4 border-white dark:border-background-dark"></div>
-                    <h4 class="text-xs font-bold text-primary uppercase tracking-widest mb-3 opacity-70">${escapeHtml(tag)}</h4>`;
+                section.className = 'relative pl-6 border-l-2';
+                section.style.borderLeftColor = color + '40';
+
+                const dot = document.createElement('div');
+                dot.className = 'absolute -left-[9px] top-0 size-4 rounded-full border-4 border-white dark:border-background-dark';
+                dot.style.backgroundColor = color;
+                section.appendChild(dot);
+
+                const label = document.createElement('h4');
+                label.className = 'text-xs font-bold uppercase tracking-widest mb-3 opacity-70';
+                label.style.color = color;
+                label.textContent = tag;
+                section.appendChild(label);
 
                 items.forEach(t => {
                     const card = document.createElement('div');
