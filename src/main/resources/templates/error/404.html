@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" class="light" lang="ko">
+<head>
+    <meta charset="utf-8"/>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    <title>페이지를 찾을 수 없습니다 - O(NlogN)</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@100..700,0..1&display=swap" rel="stylesheet"/>
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#82ccbd",
+                        "background-light": "#f6f7f7",
+                        "background-dark": "#151d1c",
+                    },
+                    fontFamily: {
+                        "display": ["IBM Plex Sans", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.5rem",
+                        "lg": "1rem",
+                        "xl": "1.5rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        };
+    </script>
+    <style>
+        body { font-family: "IBM Plex Sans", sans-serif; }
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24; }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark min-h-screen flex flex-col font-display text-slate-800 dark:text-slate-100 antialiased selection:bg-primary/30">
+
+<header class="flex items-center justify-between px-6 lg:px-12 py-6 w-full">
+    <a href="/" class="flex items-center gap-2">
+        <div class="bg-primary p-2 rounded-lg flex items-center justify-center">
+            <span class="material-symbols-outlined text-white text-2xl" style="font-variation-settings: 'FILL' 1">terminal</span>
+        </div>
+        <h2 class="text-slate-900 dark:text-white text-xl font-extrabold tracking-tight">O(NlogN)</h2>
+    </a>
+</header>
+
+<main class="flex-grow flex items-center justify-center px-4">
+    <div class="flex flex-col items-center justify-center w-full max-w-lg text-center">
+        <div class="mb-12 flex flex-col items-center">
+            <div class="relative w-40 h-40 flex items-center justify-center">
+                <div class="absolute inset-0 bg-primary/10 rounded-full scale-125"></div>
+                <div class="relative z-10 w-24 h-24 border-2 border-primary/40 rounded-xl flex items-center justify-center bg-white/50 backdrop-blur-sm">
+                    <span class="material-symbols-outlined text-5xl text-primary/60">rule</span>
+                </div>
+                <div class="absolute -right-2 -bottom-2 w-10 h-10 bg-white shadow-sm border border-slate-100 rounded-full flex items-center justify-center">
+                    <span class="material-symbols-outlined text-xl text-primary/40">question_mark</span>
+                </div>
+            </div>
+        </div>
+        <div class="space-y-4">
+            <h1 class="text-slate-900 dark:text-white text-3xl md:text-4xl font-bold tracking-tight">
+                여기는 아무것도 없어요.
+            </h1>
+            <p class="text-slate-500 dark:text-slate-400 text-base md:text-lg font-light leading-relaxed max-w-sm mx-auto">
+                요청하신 페이지를 찾을 수 없습니다.<br/>
+                주소가 정확한지 다시 한번 확인해 주세요.
+            </p>
+        </div>
+        <div class="flex flex-col sm:flex-row gap-4 mt-12 w-full justify-center items-center">
+            <a class="flex min-w-[180px] cursor-pointer items-center justify-center gap-2 rounded-full h-14 px-8 bg-primary hover:bg-[#71bba9] transition-all text-white text-base font-semibold shadow-sm hover:shadow-md" href="/">
+                <span class="material-symbols-outlined text-xl">home</span>
+                <span>홈으로 이동</span>
+            </a>
+            <a class="flex min-w-[120px] cursor-pointer items-center justify-center gap-1 text-slate-500 hover:text-primary transition-colors text-base font-medium" href="#">
+                <span>문의하기</span>
+                <span class="material-symbols-outlined text-lg">chevron_right</span>
+            </a>
+        </div>
+    </div>
+</main>
+
+<footer class="w-full">
+    <div class="flex flex-col md:flex-row gap-4 px-6 py-10 items-center justify-between max-w-7xl mx-auto">
+        <p class="text-slate-400 dark:text-slate-600 text-[13px]">&copy; 2024 O(NlogN). All rights reserved.</p>
+        <div class="flex gap-6">
+            <a class="text-slate-400 dark:text-slate-600 hover:text-primary text-[13px] transition-colors" href="#">이용약관</a>
+            <a class="text-slate-400 dark:text-slate-600 hover:text-primary text-[13px] transition-colors" href="#">개인정보처리방침</a>
+        </div>
+    </div>
+</footer>
+
+</body>
+</html>
