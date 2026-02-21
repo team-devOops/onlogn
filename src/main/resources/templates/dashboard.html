@@ -110,6 +110,29 @@
                 @apply fixed inset-0 h-full w-full max-w-none rounded-none;
             }
         }
+        .calendar-grid-picker {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+        }
+        .day-cell-picker {
+            @apply h-10 flex flex-col items-start p-1.5 relative cursor-pointer hover:bg-gray-50 rounded-lg transition-colors;
+        }
+        .day-cell-picker.selected {
+            @apply bg-primary text-white;
+        }
+        .day-cell-picker.selected .date-num-picker {
+            @apply text-white opacity-100;
+        }
+        .date-num-picker {
+            @apply text-[10px] font-medium opacity-40;
+        }
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .hide-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
     </style>
 </head>
 <body class="min-h-screen">
@@ -406,6 +429,60 @@
     </div>
 </div>
 
+<div id="datetime-picker-modal" class="hidden fixed inset-0 z-[110] flex items-center justify-center p-4">
+    <div id="datetime-picker-backdrop" class="absolute inset-0 bg-black/40 backdrop-blur-sm"></div>
+    <div class="relative bg-white dark:bg-[#1c2624] w-full max-w-[360px] rounded-[2rem] shadow-[0_20px_50px_rgba(0,0,0,0.15)] overflow-hidden">
+        <div class="px-6 pt-6 pb-2 flex items-center justify-between">
+            <button id="picker-prev-month" class="size-8 flex items-center justify-center hover:bg-gray-100 rounded-full transition-colors">
+                <span class="material-symbols-outlined text-gray-400">chevron_left</span>
+            </button>
+            <h3 id="picker-month-title" class="text-sm font-bold text-gray-700"></h3>
+            <button id="picker-next-month" class="size-8 flex items-center justify-center hover:bg-gray-100 rounded-full transition-colors">
+                <span class="material-symbols-outlined text-gray-400">chevron_right</span>
+            </button>
+        </div>
+        <div class="px-4 pb-4">
+            <div class="calendar-grid-picker mb-1">
+                <div class="text-[10px] font-bold text-center py-2 text-gray-300">일</div>
+                <div class="text-[10px] font-bold text-center py-2 text-gray-300">월</div>
+                <div class="text-[10px] font-bold text-center py-2 text-gray-300">화</div>
+                <div class="text-[10px] font-bold text-center py-2 text-gray-300">수</div>
+                <div class="text-[10px] font-bold text-center py-2 text-gray-300">목</div>
+                <div class="text-[10px] font-bold text-center py-2 text-gray-300">금</div>
+                <div class="text-[10px] font-bold text-center py-2 text-gray-300">토</div>
+            </div>
+            <div id="picker-calendar-grid" class="calendar-grid-picker"></div>
+        </div>
+        <div class="mx-6 border-t border-gray-100"></div>
+        <div class="px-6 py-6">
+            <div class="flex items-center gap-3">
+                <div class="flex-1 space-y-1.5">
+                    <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wider ml-1">시작</label>
+                    <div class="relative">
+                        <select id="picker-start-time" class="w-full bg-gray-50 border-none rounded-xl text-sm font-medium py-3 pl-4 pr-10 appearance-none focus:ring-2 focus:ring-primary/20 text-gray-700"></select>
+                        <span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-gray-300 pointer-events-none text-lg">expand_more</span>
+                    </div>
+                </div>
+                <div class="pt-6 text-gray-300">
+                    <span class="material-symbols-outlined">trending_flat</span>
+                </div>
+                <div class="flex-1 space-y-1.5">
+                    <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wider ml-1">종료</label>
+                    <div class="relative">
+                        <select id="picker-end-time" class="w-full bg-gray-50 border-none rounded-xl text-sm font-medium py-3 pl-4 pr-10 appearance-none focus:ring-2 focus:ring-primary/20 text-gray-700"></select>
+                        <span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-gray-300 pointer-events-none text-lg">expand_more</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="px-6 pb-6 pt-2">
+            <button id="btn-picker-confirm" class="w-full bg-primary hover:bg-primary/90 text-white text-sm font-bold py-3.5 rounded-xl transition-all active:scale-[0.98] shadow-lg shadow-primary/20">
+                선택 완료
+            </button>
+        </div>
+    </div>
+</div>
+
 <script th:inline="javascript">
     const API_BASE = /*[[${apiBase}]]*/ '';
 </script>
@@ -421,6 +498,8 @@
         };
 
         let currentYear, currentMonth, selectedDate;
+        let pickerYear, pickerMonth, pickerSelectedDate;
+        let taskStartTime = '', taskEndTime = '';
 
         function init() {
             const now = new Date();
@@ -694,6 +773,9 @@
             titleInput.value = '';
             linkInput.value = '';
             privateToggle.checked = true;
+            taskStartTime = '';
+            taskEndTime = '';
+            pickerSelectedDate = new Date(selectedDate);
             dateText.textContent = formatModalDate(selectedDate);
 
             document.querySelectorAll('#category-chips .chip').forEach((chip, i) => {
@@ -724,17 +806,22 @@
             const link = document.getElementById('task-link-input').value.trim();
             const isPrivate = document.getElementById('task-private-toggle').checked;
             const category = getSelectedCategory();
+            const taskDate = pickerSelectedDate || selectedDate;
+
+            const payload = {
+                title: title,
+                date: formatDate(taskDate),
+                category: category,
+                link: link || null,
+                isPrivate: isPrivate
+            };
+            if (taskStartTime) payload.startTime = taskStartTime;
+            if (taskEndTime) payload.endTime = taskEndTime;
 
             fetch(`${API_BASE}/api/tasks`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    title: title,
-                    date: formatDate(selectedDate),
-                    category: category,
-                    link: link || null,
-                    isPrivate: isPrivate
-                })
+                body: JSON.stringify(payload)
             }).then(r => {
                 if (r.ok) {
                     closeAddTask();
@@ -766,6 +853,94 @@
                     chip.classList.add('selected');
                 });
             });
+
+            document.getElementById('modal-date-display').addEventListener('click', openDateTimePicker);
+            document.getElementById('datetime-picker-backdrop').addEventListener('click', closeDateTimePicker);
+            document.getElementById('picker-prev-month').addEventListener('click', () => changePickerMonth(-1));
+            document.getElementById('picker-next-month').addEventListener('click', () => changePickerMonth(1));
+            document.getElementById('btn-picker-confirm').addEventListener('click', confirmDateTimePicker);
+
+            populateTimeOptions();
+        }
+
+        function populateTimeOptions() {
+            const startSel = document.getElementById('picker-start-time');
+            const endSel = document.getElementById('picker-end-time');
+            startSel.innerHTML = '';
+            endSel.innerHTML = '';
+
+            for (let h = 0; h < 24; h++) {
+                for (let m = 0; m < 60; m += 30) {
+                    const period = h < 12 ? '오전' : '오후';
+                    const dispH = h === 0 ? 12 : (h > 12 ? h - 12 : h);
+                    const label = `${period} ${String(dispH).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+                    const value = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+                    startSel.appendChild(new Option(label, value));
+                    endSel.appendChild(new Option(label, value));
+                }
+            }
+            startSel.value = '14:00';
+            endSel.value = '15:00';
+        }
+
+        function openDateTimePicker() {
+            const d = pickerSelectedDate || selectedDate;
+            pickerYear = d.getFullYear();
+            pickerMonth = d.getMonth();
+            renderPickerCalendar();
+            const modal = document.getElementById('datetime-picker-modal');
+            modal.classList.remove('hidden');
+        }
+
+        function closeDateTimePicker() {
+            document.getElementById('datetime-picker-modal').classList.add('hidden');
+        }
+
+        function changePickerMonth(delta) {
+            pickerMonth += delta;
+            if (pickerMonth > 11) { pickerMonth = 0; pickerYear++; }
+            if (pickerMonth < 0)  { pickerMonth = 11; pickerYear--; }
+            renderPickerCalendar();
+        }
+
+        function renderPickerCalendar() {
+            document.getElementById('picker-month-title').textContent = `${pickerYear}년 ${pickerMonth + 1}월`;
+            const grid = document.getElementById('picker-calendar-grid');
+            grid.innerHTML = '';
+
+            const firstDay = new Date(pickerYear, pickerMonth, 1).getDay();
+            const daysInMonth = new Date(pickerYear, pickerMonth + 1, 0).getDate();
+            const prevDays = new Date(pickerYear, pickerMonth, 0).getDate();
+            const sel = pickerSelectedDate;
+
+            for (let i = firstDay - 1; i >= 0; i--) {
+                const cell = document.createElement('div');
+                cell.className = 'day-cell-picker opacity-20';
+                cell.innerHTML = `<span class="date-num-picker">${prevDays - i}</span>`;
+                grid.appendChild(cell);
+            }
+            for (let d = 1; d <= daysInMonth; d++) {
+                const cell = document.createElement('div');
+                const isSelected = sel && sel.getFullYear() === pickerYear && sel.getMonth() === pickerMonth && sel.getDate() === d;
+                cell.className = 'day-cell-picker' + (isSelected ? ' selected' : '');
+                cell.innerHTML = `<span class="date-num-picker">${d}</span>`;
+                cell.addEventListener('click', () => {
+                    pickerSelectedDate = new Date(pickerYear, pickerMonth, d);
+                    renderPickerCalendar();
+                });
+                grid.appendChild(cell);
+            }
+        }
+
+        function confirmDateTimePicker() {
+            taskStartTime = document.getElementById('picker-start-time').value;
+            taskEndTime = document.getElementById('picker-end-time').value;
+
+            const d = pickerSelectedDate;
+            const startLabel = document.getElementById('picker-start-time').options[document.getElementById('picker-start-time').selectedIndex].text;
+            document.getElementById('modal-date-text').textContent = `${formatModalDate(d)} · ${startLabel}`;
+
+            closeDateTimePicker();
         }
 
         function initSettings() {
