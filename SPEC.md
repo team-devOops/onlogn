@@ -379,6 +379,10 @@ O(NlogN)은 단순한 할 일 관리(TODO)가 아니라, 실행 기록을 꾸준
 | 그룹 분포 (디자인 45% / 개발 30% 등) | `GET /profiles/{slug}/tasks?limit=100` 기반 클라이언트 집계 |
 | 관심 키워드 | `GET /profiles/{slug}/tasks?limit=100` 응답의 해당 회원 공개 task(`tags` + `title`) 기반 클라이언트 추출 |
 
+- 연속 달성일(`stat-streak`)은 `GET /profiles/{slug}` 응답에 `streak_days`가 있으면 해당 값을 우선 사용한다.
+- `streak_days`가 없으면 클라이언트는 `GET /profiles/{slug}/tasks?status=done&due_date_to=today`를 페이지네이션으로 조회해 `due_date` 기준 연속 완료일을 계산한다.
+- 오늘 완료가 없으면 어제부터 역산하며, 날짜 공백이 나오면 streak를 종료한다.
+
 ---
 
 ## 11. 공통 데이터 규칙
@@ -429,6 +433,7 @@ v1에서 명시적으로 지원하지 않는 기능 목록이다.
 | 공개 프로필 페이지 라우팅 | 존재하지 않는 `@slug` 웹 페이지 접근 시 HTML 404 페이지를 반환 |
 | 공개 프로필 그룹 경계 | public task라도 연결 group이 private이면 profile task 목록에서 제외 |
 | 공개 프로필 AI 요약 | period(weekly/monthly/30days) 요청 시 공개 범위 task 기반 summary 반환, 비공개 프로필은 404 |
+| 그룹 순서 | 그룹 관리에서 드래그로 변경한 순서는 새로고침 후에도 유지되어야 함 |
 | 월간 캘린더 | year/month 필수, task 없는 날도 0값 포함, 전체 월 반환 |
 | reaction | public task에만 적용, 인증 사용자만 토글 가능, (user_id, task_id, emoji) 단위 토글 |
 | 페이지네이션 | offset/limit, 기본값 0/20, max 100, 알 수 없는 필터 키는 400 |
@@ -477,3 +482,12 @@ v1에서 명시적으로 지원하지 않는 기능 목록이다.
 - `reactions`의 `(user_id, task_id, emoji)` unique 제약 충돌을 피하기 위해, 이전 전 중복 후보를 정리하는 단계가 있어야 한다.
 - 스크립트는 트랜잭션(`START TRANSACTION`/`COMMIT`) 안에서 실행되어야 하며, 이전 전후 건수 확인용 조회를 포함해야 한다.
 - UUID는 `UUID_TO_BIN`/`BIN_TO_UUID` 규칙을 사용하는 현재 MySQL 스키마와 호환되어야 한다.
+
+---
+
+## 19. 액세스 토큰 만료 시 자동 리프레시 요구사항
+
+- 클라이언트는 API 요청에서 `401` 응답을 받으면 `POST /api/v1/auth/refresh`를 호출해 토큰을 회전해야 한다.
+- 리프레시 성공 시 새 `access_token`/`refresh_token`을 로컬 저장소에 반영하고, 실패한 원 요청을 1회 재시도해야 한다.
+- `/api/v1/auth/*` 요청 자체는 자동 리프레시 재귀 대상에서 제외해야 한다.
+- 리프레시 실패 시 세션 토큰(`access_token`, `refresh_token`, `token_expires_at`)을 정리해야 한다.

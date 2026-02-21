@@ -344,6 +344,90 @@
             return { from, to, days };
         }
 
+        function getTodayDateInTimezone(timezone) {
+            try {
+                const formatted = new Intl.DateTimeFormat('en-CA', {
+                    timeZone: timezone || 'UTC',
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit'
+                }).format(new Date());
+                if (/^\d{4}-\d{2}-\d{2}$/.test(formatted)) return formatted;
+            } catch (_) {}
+            return formatDate(new Date());
+        }
+
+        function shiftDateKey(dateKey, deltaDays) {
+            const d = new Date(dateKey + 'T00:00:00Z');
+            d.setUTCDate(d.getUTCDate() + deltaDays);
+            return d.toISOString().slice(0, 10);
+        }
+
+        function calculateStreakFromDoneDateSet(doneDateSet, timezone) {
+            if (!doneDateSet || doneDateSet.size === 0) return 0;
+
+            let cursor = getTodayDateInTimezone(timezone);
+            if (!doneDateSet.has(cursor)) {
+                cursor = shiftDateKey(cursor, -1);
+            }
+
+            let streak = 0;
+            while (doneDateSet.has(cursor)) {
+                streak += 1;
+                cursor = shiftDateKey(cursor, -1);
+            }
+            return streak;
+        }
+
+        function fetchDoneDateSetForStreak(timezone) {
+            const limit = 100;
+            const maxPages = 20;
+            const today = getTodayDateInTimezone(timezone);
+            const doneDateSet = new Set();
+
+            function fetchPage(offset, pageCount) {
+                if (pageCount >= maxPages) return Promise.resolve(doneDateSet);
+
+                const qs = `status=done&due_date_to=${today}&offset=${offset}&limit=${limit}`;
+                return fetch(`${API_BASE}/api/v1/profiles/${PROFILE_SLUG}/tasks?${qs}`)
+                    .then(r => r.ok ? r.json() : null)
+                    .then(resp => {
+                        const rows = resp && resp.data ? resp.data : [];
+                        rows.forEach(t => {
+                            if (t && t.due_date) doneDateSet.add(t.due_date);
+                        });
+
+                        const total = resp && resp.meta && resp.meta.pagination ? resp.meta.pagination.total : null;
+                        const reachedEndByLength = rows.length < limit;
+                        const reachedEndByTotal = typeof total === 'number' ? (offset + limit >= total) : false;
+                        if (reachedEndByLength || reachedEndByTotal) {
+                            return doneDateSet;
+                        }
+                        return fetchPage(offset + limit, pageCount + 1);
+                    })
+                    .catch(() => doneDateSet);
+            }
+
+            return fetchPage(0, 0);
+        }
+
+        function hydrateStreakDays(profile) {
+            const statStreak = document.getElementById('stat-streak');
+            if (typeof profile.streak_days === 'number') {
+                statStreak.textContent = String(profile.streak_days);
+                return;
+            }
+
+            fetchDoneDateSetForStreak(profile.timezone)
+                .then(doneDateSet => {
+                    const streak = calculateStreakFromDoneDateSet(doneDateSet, profile.timezone);
+                    statStreak.textContent = String(streak);
+                })
+                .catch(() => {
+                    statStreak.textContent = '0';
+                });
+        }
+
         function fetchTasksByPeriod(period, limit) {
             const { from, to } = getPeriodWindow(period);
             return fetch(`${API_BASE}/api/v1/profiles/${PROFILE_SLUG}/tasks?due_date_from=${from}&due_date_to=${to}&limit=${limit}`)
@@ -392,7 +476,7 @@
 
             if (p.total_tasks !== undefined) document.getElementById('stat-total').textContent = p.total_tasks.toLocaleString();
             if (p.completion_rate !== undefined) document.getElementById('stat-rate').textContent = Math.round(p.completion_rate) + '%';
-            if (p.streak_days !== undefined) document.getElementById('stat-streak').textContent = p.streak_days;
+            hydrateStreakDays(p);
 
             if (p.stats_summary) {
                 const s = p.stats_summary;
