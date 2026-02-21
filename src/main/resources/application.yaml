@@ -34,3 +34,6 @@ app:
     secret: onlogn-super-secret-key-for-jwt-signing-minimum-32-bytes-long
     access-token-expiration-seconds: 900
     refresh-token-expiration-seconds: 1209600
+  github:
+    client-id: ${GITHUB_CLIENT_ID:}
+    client-secret: ${GITHUB_CLIENT_SECRET:}
