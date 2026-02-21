@@ -238,10 +238,23 @@
             '미팅': '#a78bfa',
             '기본': '#9ca3af'
         };
+        const GROUP_PALETTE = ['#fb923c', '#60a5fa', '#a78bfa', '#fbbf24', '#34d399', '#f472b6', '#82ccbd', '#f97316'];
         const DEFAULT_TAG_COLOR = '#82ccbd';
+        const groupColorCache = {};
 
         function getTagColor(tag) {
-            return TAG_COLORS[tag] || DEFAULT_TAG_COLOR;
+            if (TAG_COLORS[tag]) return TAG_COLORS[tag];
+            if (groupColorCache[tag]) return groupColorCache[tag];
+            return DEFAULT_TAG_COLOR;
+        }
+
+        function assignGroupColor(groupId) {
+            if (!groupId) return '#9ca3af';
+            if (groupColorCache[groupId]) return groupColorCache[groupId];
+            let hash = 0;
+            for (let i = 0; i < groupId.length; i++) hash = ((hash << 5) - hash) + groupId.charCodeAt(i);
+            groupColorCache[groupId] = GROUP_PALETTE[Math.abs(hash) % GROUP_PALETTE.length];
+            return groupColorCache[groupId];
         }
 
         function generateDummyTodos(dateStr) {
@@ -425,7 +438,13 @@
                 .then(r => r.ok ? r.json() : null)
                 .then(resp => {
                     if (resp && resp.data && resp.data.length > 0) {
-                        renderTodoList(resp.data);
+                        const tasks = resp.data.map(t => {
+                            const groupName = (t.tags && t.tags.length > 0) ? t.tags[0] : '기본';
+                            const color = t.group_id ? assignGroupColor(t.group_id) : getTagColor(groupName);
+                            if (t.group_id && groupName !== '기본') groupColorCache[groupName] = color;
+                            return Object.assign(t, { tag_color: color });
+                        });
+                        fetchAllReactions(tasks).then(() => renderTodoList(tasks));
                     } else {
                         renderTodoList(generateDummyTodos(dateStr));
                     }
@@ -442,36 +461,93 @@
 
         let currentTasks = [];
 
+        function fetchReactionsForTask(task) {
+            if (!task.id) return Promise.resolve();
+            return fetch(`${API_BASE}/api/v1/tasks/${task.id}/reactions`)
+                .then(r => r.ok ? r.json() : null)
+                .then(resp => {
+                    if (resp && resp.data) {
+                        task.reactions = resp.data.map(r => ({
+                            emoji: r.emoji,
+                            count: r.count,
+                            reacted: r.requester_reacted || false
+                        }));
+                    }
+                })
+                .catch(() => {});
+        }
+
+        function fetchAllReactions(tasks) {
+            return Promise.all(tasks.filter(t => t.id).map(t => fetchReactionsForTask(t)));
+        }
+
+        function getAuthToken() {
+            try {
+                const cookies = document.cookie.split(';');
+                for (const c of cookies) {
+                    const [k, v] = c.trim().split('=');
+                    if (k === 'access_token') return v;
+                }
+            } catch (_) {}
+            return localStorage.getItem('access_token') || null;
+        }
+
         function toggleReaction(taskIdx, emoji) {
             const task = currentTasks[taskIdx];
             if (!task) return;
-            if (!task.reactions) task.reactions = [];
 
+            if (!task.id) {
+                // 더미 task — 로컬 토글만
+                if (!task.reactions) task.reactions = [];
+                const existing = task.reactions.find(r => r.emoji === emoji);
+                if (existing) {
+                    existing.reacted = !existing.reacted;
+                    existing.count = existing.reacted ? existing.count + 1 : Math.max(0, existing.count - 1);
+                    if (existing.count === 0) task.reactions = task.reactions.filter(r => r.emoji !== emoji);
+                } else {
+                    task.reactions.push({ emoji, count: 1, reacted: true });
+                }
+                renderTodoList(currentTasks);
+                return;
+            }
+
+            if (!task.reactions) task.reactions = [];
             const existing = task.reactions.find(r => r.emoji === emoji);
             if (existing) {
-                if (existing.reacted) {
-                    existing.count = Math.max(0, existing.count - 1);
-                    existing.reacted = false;
-                    if (existing.count === 0) {
-                        task.reactions = task.reactions.filter(r => r.emoji !== emoji);
-                    }
-                } else {
-                    existing.count++;
-                    existing.reacted = true;
-                }
+                existing.count++;
             } else {
-                task.reactions.push({ emoji: emoji, count: 1, reacted: true });
+                task.reactions.push({ emoji, count: 1, reacted: true });
             }
-
-            if (task.id) {
-                fetch(`${API_BASE}/api/v1/tasks/${task.id}/reactions`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ emoji: emoji })
-                }).catch(() => {});
-            }
-
             renderTodoList(currentTasks);
+
+            const headers = { 'Content-Type': 'application/json' };
+            const token = getAuthToken();
+            if (token) headers['Authorization'] = 'Bearer ' + token;
+
+            fetch(`${API_BASE}/api/v1/tasks/${task.id}/reactions`, {
+                method: 'POST',
+                headers: headers,
+                body: JSON.stringify({ emoji: emoji })
+            })
+            .then(r => r.ok ? r.json() : null)
+            .then(resp => {
+                if (resp && resp.data) {
+                    const r = resp.data;
+                    const idx = task.reactions.findIndex(x => x.emoji === r.emoji);
+                    if (idx >= 0) {
+                        task.reactions[idx].count = r.count;
+                        task.reactions[idx].reacted = r.requester_reacted;
+                        if (r.count === 0) task.reactions.splice(idx, 1);
+                    } else if (r.count > 0) {
+                        task.reactions.push({ emoji: r.emoji, count: r.count, reacted: r.requester_reacted });
+                    }
+                    renderTodoList(currentTasks);
+                }
+            })
+            .catch(() => {
+                // 실패 시 서버에서 최신 상태 다시 가져오기
+                fetchReactionsForTask(task).then(() => renderTodoList(currentTasks));
+            });
         }
 
         function renderTodoList(tasks) {
@@ -516,7 +592,8 @@
                     const checkIcon = isDone
                         ? '<div class="size-6 shrink-0 flex items-center justify-center rounded-full bg-primary text-white"><span class="material-symbols-outlined text-xs font-bold">check</span></div>'
                         : '<div class="size-6 shrink-0 flex items-center justify-center rounded-full border-2 border-primary/30"></div>';
-                    const linkHtml = t.link ? `<a class="inline-flex items-center gap-1 text-[11px] text-[#5f867e] hover:text-primary transition-colors max-w-[150px]" href="#"><span class="material-symbols-outlined text-[12px]">link</span><span class="truncate">${escapeHtml(t.link)}</span></a>` : '';
+                    const linkUrl = t.link || (t.reference_links && t.reference_links.length > 0 ? t.reference_links[0] : null);
+                    const linkHtml = linkUrl ? `<a class="inline-flex items-center gap-1 text-[11px] text-[#5f867e] hover:text-primary transition-colors max-w-[150px]" href="#"><span class="material-symbols-outlined text-[12px]">link</span><span class="truncate">${escapeHtml(linkUrl)}</span></a>` : '';
 
                     const topRow = document.createElement('div');
                     topRow.className = 'flex items-center gap-4';
