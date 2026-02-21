@@ -356,6 +356,7 @@ O(NlogN)은 단순한 할 일 관리(TODO)가 아니라, 실행 기록을 꾸준
 | UI 요소 | 연결 API / 처리 방식 |
 |---------|---------------------|
 | 좌측 월간 캘린더 히트맵 | `GET /tasks/calendar/monthly` |
+| 좌측 월간 캘린더 공휴일 표기 | 대한민국 공휴일 API(연도 단위) 조회 후 날짜 텍스트를 빨간색으로 렌더링 |
 | MONTHLY GOAL COMPLETION (예: 72%) | 월간 완료율, 클라이언트 집계 |
 | 그룹 섹션 (MORNING TASKS, WORK FOCUS 등) | `GET /tasks?group_id={id}` |
 | task 체크박스 | `PATCH /tasks/{task_id}` (status: todo→done) |

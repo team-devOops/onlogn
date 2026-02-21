@@ -56,6 +56,9 @@
         .day-cell.today .date-num {
             @apply opacity-100 font-semibold;
         }
+        .day-cell .date-num.holiday-date {
+            @apply text-red-500 opacity-90 font-semibold;
+        }
         .day-cell.today::after {
             content: '';
             @apply absolute bottom-1 w-1 h-1 bg-primary rounded-full;
@@ -610,6 +613,8 @@
         let currentUser = null;
         let groupMap = {};
         let groupOrder = [];
+        const holidayDateSetByYear = {};
+        const holidayFetchInFlightByYear = {};
         const rawFetch = window.fetch.bind(window);
         let refreshInFlight = null;
         let authFailureHandled = false;
@@ -795,6 +800,12 @@
             renderDayTitle();
             renderCalendar();
             renderMobileWeek();
+            ensureKoreanHolidays(currentYear)
+                .then(() => {
+                    applyHolidayStylesToCalendar();
+                    renderMobileWeek();
+                })
+                .catch(() => {});
             fetchMonthlyStats();
         }
 
@@ -821,7 +832,8 @@
             }
             for (let d = 1; d <= daysInMonth; d++) {
                 const isToday = today.getFullYear() === currentYear && today.getMonth() === currentMonth && today.getDate() === d;
-                const cell = createDayCell(d, false, isToday);
+                const dateObj = new Date(currentYear, currentMonth, d);
+                const cell = createDayCell(d, false, isToday, dateObj);
                 cell.addEventListener('click', () => selectDate(d));
                 grid.appendChild(cell);
             }
@@ -833,7 +845,7 @@
             }
         }
 
-        function createDayCell(day, faded, isToday) {
+        function createDayCell(day, faded, isToday, dateObj) {
             const cell = document.createElement('div');
             const isSelected = !faded && selectedDate.getFullYear() === currentYear && selectedDate.getMonth() === currentMonth && selectedDate.getDate() === day;
             cell.className = `day-cell ${HEAT_CLASSES[0]}`
@@ -841,10 +853,17 @@
                 + (isToday ? ' today' : '')
                 + (isSelected ? ' ring-2 ring-primary ring-inset' : '');
             const span = document.createElement('span');
-            span.className = 'date-num' + (isToday ? ' text-primary' : '') + (isSelected ? ' !font-bold !opacity-100' : '');
+            const isHoliday = !faded && dateObj ? isKoreanHolidayDate(dateObj) : false;
+            span.className = 'date-num'
+                + (isToday ? ' text-primary' : '')
+                + (isHoliday ? ' holiday-date' : '')
+                + (isSelected ? ' !font-bold !opacity-100' : '');
             span.textContent = day;
             cell.appendChild(span);
             cell.dataset.day = day;
+            if (!faded && dateObj) {
+                cell.dataset.date = formatDate(dateObj);
+            }
             return cell;
         }
 
@@ -867,18 +886,20 @@
                 const isSelected = current.toDateString() === selectedDate.toDateString();
                 const isSun = current.getDay() === 0;
                 const isSat = current.getDay() === 6;
+                const isHoliday = isKoreanHolidayDate(current);
 
                 const btn = document.createElement('div');
                 btn.className = isSelected
                     ? 'flex flex-col items-center gap-0.5 p-2 rounded-xl bg-primary text-white border border-primary w-14 shadow-md shadow-primary/20 ring-2 ring-primary/20'
                     : 'flex flex-col items-center gap-0.5 p-2 rounded-xl bg-white/50 border border-primary/10 w-14 transition-all active:scale-95';
+                btn.dataset.date = formatDate(current);
 
                 const dayLabel = document.createElement('span');
-                dayLabel.className = 'text-[9px] font-bold' + (isSelected ? ' opacity-80' : (isSun ? ' text-red-400 opacity-40' : (isSat ? ' text-blue-400 opacity-40' : ' opacity-40')));
+                dayLabel.className = 'text-[9px] font-bold' + (isSelected ? ' opacity-80' : (isHoliday || isSun ? ' text-red-400 opacity-40' : (isSat ? ' text-blue-400 opacity-40' : ' opacity-40')));
                 dayLabel.textContent = DAY_NAMES[current.getDay()];
 
                 const dateLabel = document.createElement('span');
-                dateLabel.className = 'text-xs font-bold' + (!isSelected && isSun ? ' text-red-400' : '') + (!isSelected && isSat ? ' text-blue-400' : '');
+                dateLabel.className = 'text-xs font-bold' + (!isSelected && (isHoliday || isSun) ? ' text-red-400' : '') + (!isSelected && !isHoliday && isSat ? ' text-blue-400' : '');
                 dateLabel.textContent = current.getDate();
 
                 btn.appendChild(dayLabel);
@@ -908,6 +929,60 @@
                     }
                 })
                 .catch(() => { groupMap = {}; groupOrder = []; });
+        }
+
+        function ensureKoreanHolidays(year) {
+            if (holidayDateSetByYear[year]) {
+                return Promise.resolve(holidayDateSetByYear[year]);
+            }
+            if (holidayFetchInFlightByYear[year]) {
+                return holidayFetchInFlightByYear[year];
+            }
+
+            const request = rawFetch(`https://date.nager.at/api/v3/PublicHolidays/${year}/KR`)
+                .then(r => r.ok ? r.json() : [])
+                .then(rows => {
+                    const set = new Set();
+                    if (Array.isArray(rows)) {
+                        rows.forEach(item => {
+                            if (item && typeof item.date === 'string' && item.date.length >= 10) {
+                                set.add(item.date.slice(0, 10));
+                            }
+                        });
+                    }
+                    holidayDateSetByYear[year] = set;
+                    return set;
+                })
+                .catch(() => {
+                    const emptySet = new Set();
+                    holidayDateSetByYear[year] = emptySet;
+                    return emptySet;
+                })
+                .finally(() => {
+                    delete holidayFetchInFlightByYear[year];
+                });
+
+            holidayFetchInFlightByYear[year] = request;
+            return request;
+        }
+
+        function isKoreanHolidayDate(dateObj) {
+            if (!(dateObj instanceof Date)) return false;
+            const year = dateObj.getFullYear();
+            const set = holidayDateSetByYear[year];
+            if (!set) return false;
+            return set.has(formatDate(dateObj));
+        }
+
+        function applyHolidayStylesToCalendar() {
+            document.querySelectorAll('#calendar-grid .day-cell:not(.opacity-20)').forEach(cell => {
+                const dateStr = cell.dataset.date;
+                if (!dateStr) return;
+                const dayText = cell.querySelector('.date-num');
+                if (!dayText) return;
+                const isHoliday = holidayDateSetByYear[currentYear] && holidayDateSetByYear[currentYear].has(dateStr);
+                dayText.classList.toggle('holiday-date', Boolean(isHoliday));
+            });
         }
 
         function fetchTasks(date) {
