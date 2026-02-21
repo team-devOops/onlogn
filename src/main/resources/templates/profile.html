@@ -384,7 +384,42 @@
             renderActivityMonth();
         }
 
+        let currentTasks = [];
+
+        function toggleReaction(taskIdx, emoji) {
+            const task = currentTasks[taskIdx];
+            if (!task) return;
+            if (!task.reactions) task.reactions = [];
+
+            const existing = task.reactions.find(r => r.emoji === emoji);
+            if (existing) {
+                if (existing.reacted) {
+                    existing.count = Math.max(0, existing.count - 1);
+                    existing.reacted = false;
+                    if (existing.count === 0) {
+                        task.reactions = task.reactions.filter(r => r.emoji !== emoji);
+                    }
+                } else {
+                    existing.count++;
+                    existing.reacted = true;
+                }
+            } else {
+                task.reactions.push({ emoji: emoji, count: 1, reacted: true });
+            }
+
+            if (task.id) {
+                fetch(`${API_BASE}/api/v1/tasks/${task.id}/reactions`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ emoji: emoji })
+                }).catch(() => {});
+            }
+
+            renderTodoList(currentTasks);
+        }
+
         function renderTodoList(tasks) {
+            currentTasks = tasks;
             const list = document.getElementById('todo-list');
             if (tasks.length === 0) {
                 list.innerHTML = '<div class="py-8 text-center text-sm opacity-40">이 날의 할 일이 없습니다</div>';
@@ -392,60 +427,79 @@
             }
 
             const grouped = {};
-            tasks.forEach(t => {
+            tasks.forEach((t, idx) => {
+                t._idx = idx;
                 const tag = (t.tags && t.tags.length > 0) ? t.tags[0] : '기본';
                 if (!grouped[tag]) grouped[tag] = [];
                 grouped[tag].push(t);
             });
 
-            list.innerHTML = Object.entries(grouped).map(([tag, items]) => {
-                const tasksHtml = items.map(t => {
+            list.innerHTML = '';
+            Object.entries(grouped).forEach(([tag, items]) => {
+                const section = document.createElement('div');
+                section.className = 'relative pl-6 border-l-2 border-primary/20';
+                section.innerHTML = `
+                    <div class="absolute -left-[9px] top-0 size-4 rounded-full bg-primary border-4 border-white dark:border-background-dark"></div>
+                    <h4 class="text-xs font-bold text-primary uppercase tracking-widest mb-3 opacity-70">${escapeHtml(tag)}</h4>`;
+
+                items.forEach(t => {
+                    const card = document.createElement('div');
+                    card.className = 'flex flex-col gap-3 p-4 rounded-xl bg-primary/5 border border-primary/10 hover:border-primary/30 transition-all mb-3';
+
                     const isDone = t.status === 'done';
                     const checkIcon = isDone
                         ? '<div class="size-6 shrink-0 flex items-center justify-center rounded-full bg-primary text-white"><span class="material-symbols-outlined text-xs font-bold">check</span></div>'
                         : '<div class="size-6 shrink-0 flex items-center justify-center rounded-full border-2 border-primary/30"></div>';
-
                     const linkHtml = t.link ? `<a class="inline-flex items-center gap-1 text-[11px] text-[#5f867e] hover:text-primary transition-colors max-w-[150px]" href="#"><span class="material-symbols-outlined text-[12px]">link</span><span class="truncate">${escapeHtml(t.link)}</span></a>` : '';
 
-                    const reactions = (t.reactions || []).map(r =>
-                        `<div class="flex items-center gap-1 px-2 py-0.5 rounded-md bg-white/50 dark:bg-white/10 text-[10px] font-bold"><span>${r.emoji}</span> ${r.count}</div>`
-                    ).join('');
-
-                    const taskId = 'task-' + Math.random().toString(36).substring(2, 9);
-                    const pickerEmojis = EMOJI_OPTIONS.map(e =>
-                        `<button class="px-2 py-1 rounded-md bg-white/40 hover:bg-white/80 dark:bg-white/5 dark:hover:bg-white/20 text-sm transition-all" data-emoji="${e}">${e}</button>`
-                    ).join('');
-
-                    return `
-                        <div class="group flex flex-col gap-3 p-4 rounded-xl bg-primary/5 border border-primary/10 hover:border-primary/30 transition-all">
-                            <div class="flex items-center gap-4">
-                                ${checkIcon}
-                                <div class="flex-1 min-w-0">
-                                    <div class="flex items-baseline gap-2 flex-wrap mb-1">
-                                        <p class="text-base font-bold">${escapeHtml(t.title)}</p>
-                                        ${linkHtml}
-                                    </div>
-                                    <div class="flex flex-wrap items-center gap-2">
-                                        ${reactions}
-                                        <button class="size-5 flex items-center justify-center rounded-md bg-primary/10 hover:bg-primary/20 transition-colors text-primary" onclick="this.closest('.group').querySelector('.emoji-picker').classList.toggle('active')">
-                                            <span class="material-symbols-outlined text-xs">add</span>
-                                        </button>
-                                    </div>
-                                </div>
+                    const topRow = document.createElement('div');
+                    topRow.className = 'flex items-center gap-4';
+                    topRow.innerHTML = `
+                        ${checkIcon}
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-baseline gap-2 flex-wrap mb-1">
+                                <p class="text-base font-bold">${escapeHtml(t.title)}</p>
+                                ${linkHtml}
                             </div>
-                            <div class="emoji-picker flex-wrap gap-1.5 pt-2 border-t border-primary/5" id="${taskId}-picker">
-                                ${pickerEmojis}
-                            </div>
+                            <div class="reaction-bar flex flex-wrap items-center gap-2"></div>
                         </div>`;
-                }).join('');
+                    card.appendChild(topRow);
 
-                return `
-                    <div class="relative pl-6 border-l-2 border-primary/20">
-                        <div class="absolute -left-[9px] top-0 size-4 rounded-full bg-primary border-4 border-white dark:border-background-dark"></div>
-                        <h4 class="text-xs font-bold text-primary uppercase tracking-widest mb-3 opacity-70">${escapeHtml(tag)}</h4>
-                        ${tasksHtml}
-                    </div>`;
-            }).join('');
+                    const reactionBar = topRow.querySelector('.reaction-bar');
+                    (t.reactions || []).forEach(r => {
+                        const btn = document.createElement('button');
+                        btn.className = 'flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold transition-all cursor-pointer ' +
+                            (r.reacted ? 'bg-primary/20 ring-1 ring-primary/30 dark:bg-primary/30' : 'bg-white/50 dark:bg-white/10 hover:bg-primary/10');
+                        btn.innerHTML = `<span>${r.emoji}</span> ${r.count}`;
+                        btn.addEventListener('click', () => toggleReaction(t._idx, r.emoji));
+                        reactionBar.appendChild(btn);
+                    });
+
+                    const addBtn = document.createElement('button');
+                    addBtn.className = 'size-5 flex items-center justify-center rounded-md bg-primary/10 hover:bg-primary/20 transition-colors text-primary';
+                    addBtn.innerHTML = '<span class="material-symbols-outlined text-xs">add</span>';
+                    reactionBar.appendChild(addBtn);
+
+                    const picker = document.createElement('div');
+                    picker.className = 'emoji-picker flex-wrap gap-1.5 pt-2 border-t border-primary/5';
+                    EMOJI_OPTIONS.forEach(e => {
+                        const eBtn = document.createElement('button');
+                        eBtn.className = 'px-2 py-1 rounded-md bg-white/40 hover:bg-white/80 dark:bg-white/5 dark:hover:bg-white/20 text-sm transition-all';
+                        eBtn.textContent = e;
+                        eBtn.addEventListener('click', () => {
+                            toggleReaction(t._idx, e);
+                        });
+                        picker.appendChild(eBtn);
+                    });
+                    card.appendChild(picker);
+
+                    addBtn.addEventListener('click', () => picker.classList.toggle('active'));
+
+                    section.appendChild(card);
+                });
+
+                list.appendChild(section);
+            });
         }
 
         function formatDate(d) {
