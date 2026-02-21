@@ -28,11 +28,12 @@ public class UserService {
     }
 
     @Transactional
-    public UserEntity updateCurrentUser(UUID userId, String bio, String displayName, String timezone) {
+    public UserEntity updateCurrentUser(UUID userId, String bio, String displayName, String timezone, String visibility) {
         UserEntity user = getCurrentUser(userId);
         if (bio != null) user.setBio(bio);
         if (displayName != null) user.setDisplayName(displayName);
         if (timezone != null) user.setTimezone(timezone);
+        if (visibility != null) user.setVisibility(visibility);
         return userRepository.save(user);
     }
 }

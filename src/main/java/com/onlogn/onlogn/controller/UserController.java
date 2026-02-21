@@ -36,6 +36,7 @@ public class UserController {
             @JsonProperty("avatar_url") String avatarUrl,
             String bio,
             String timezone,
+            String visibility,
             @JsonProperty("created_at") String createdAt,
             @JsonProperty("updated_at") String updatedAt
     ) {
@@ -60,7 +61,8 @@ public class UserController {
     public record UpdateUserRequest(
             String bio,
             @JsonProperty("display_name") String displayName,
-            String timezone
+            String timezone,
+            String visibility
     ) {
     }
 
@@ -74,7 +76,7 @@ public class UserController {
     @ApiResponse(responseCode = "401", description = "RFC9457 problem details 응답.")
     public ResponseEntity<DataMetaEnvelope<UserResponse>> updateMe(@RequestBody UpdateUserRequest request) {
         UUID userId = (UUID) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-        UserEntity user = userService.updateCurrentUser(userId, request.bio(), request.displayName(), request.timezone());
+        UserEntity user = userService.updateCurrentUser(userId, request.bio(), request.displayName(), request.timezone(), request.visibility());
         return ResponseEntity.ok(DataMetaEnvelope.of(toUserResponse(user)));
     }
 
@@ -87,6 +89,7 @@ public class UserController {
                 user.getAvatarUrl(),
                 user.getBio(),
                 user.getTimezone(),
+                user.getVisibility(),
                 user.getCreatedAt().toString(),
                 user.getUpdatedAt().toString()
         );

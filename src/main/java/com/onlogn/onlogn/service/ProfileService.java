@@ -47,6 +47,7 @@ public class ProfileService {
                 "avatar_url", user.getAvatarUrl() != null ? user.getAvatarUrl() : "",
                 "bio", user.getBio() != null ? user.getBio() : "",
                 "timezone", user.getTimezone(),
+                "visibility", user.getVisibility(),
                 "created_at", user.getCreatedAt().toString(),
                 "stats_summary", statsSummary
         );

@@ -1169,7 +1169,7 @@
                         checkInner.innerHTML = '';
                     }
 
-                    renderEditTags(t.tags || []);
+                    renderEditTags(t.group_id ? [t.group_id] : []);
 
                     document.getElementById('edit-task-modal').classList.remove('hidden');
                     document.body.style.overflow = 'hidden';
@@ -1188,14 +1188,15 @@
             if (!title) return;
             const link = document.getElementById('edit-link-input').value.trim();
             const selectedTag = document.querySelector('#edit-tags-container .tag-item.selected');
-            const tags = (selectedTag && selectedTag.dataset.tag !== 'default') ? [selectedTag.dataset.tag] : [];
+            const groupId = (selectedTag && selectedTag.dataset.tag !== 'default') ? selectedTag.dataset.tag : null;
 
             const payload = {
                 title: title,
                 visibility: editIsPublic ? 'public' : 'private',
-                tags: tags,
                 reference_links: link ? [link] : []
             };
+            if (groupId) { payload.group_id = groupId; }
+            else { payload.clear_group_id = true; }
 
             fetch(`/api/v1/tasks/${editingTaskId}`, {
                 method: 'PATCH',
@@ -1350,9 +1351,9 @@
                 title: title,
                 due_date: formatDate(taskDate),
                 visibility: isPublic ? 'public' : 'private',
-                tags: category && category !== 'default' ? [category] : [],
                 reference_links: link ? [link] : []
             };
+            if (category && category !== 'default') payload.group_id = category;
             if (taskStartTime) payload.start_time = taskStartTime + ':00Z';
             if (taskEndTime) payload.end_time = taskEndTime + ':00Z';
 

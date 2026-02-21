@@ -29,6 +29,9 @@ public class UserEntity {
     @Column(nullable = false)
     private String timezone = "UTC";
 
+    @Column(nullable = false)
+    private String visibility = "public";
+
     @Column(name = "github_id", unique = true)
     private String githubId;
 
@@ -63,6 +66,8 @@ public class UserEntity {
     public void setBio(String bio) { this.bio = bio; }
     public String getTimezone() { return timezone; }
     public void setTimezone(String timezone) { this.timezone = timezone; }
+    public String getVisibility() { return visibility; }
+    public void setVisibility(String visibility) { this.visibility = visibility; }
     public String getGithubId() { return githubId; }
     public void setGithubId(String githubId) { this.githubId = githubId; }
     public Instant getCreatedAt() { return createdAt; }
