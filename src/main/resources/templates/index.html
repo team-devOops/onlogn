@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" class="light" lang="ko">
+<head>
+    <meta charset="utf-8"/>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    <title>Todo Growth - 할 일을 기록하고 성장을 공유하세요</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@100;200;300;400;500;600;700&display=swap" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/css2?family=Spline+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        primary: "#82ccbd",
+                        "background-light": "#f6f7f7",
+                        "background-dark": "#151d1c",
+                        "sage-gray": "#638881"
+                    },
+                    fontFamily: {
+                        display: ["IBM Plex Sans", "sans-serif"]
+                    },
+                    borderRadius: {
+                        DEFAULT: "0.5rem",
+                        lg: "1rem",
+                        xl: "1.5rem",
+                        full: "9999px"
+                    }
+                }
+            }
+        };
+    </script>
+    <style>
+        body {
+            font-family: 'Spline Sans', sans-serif;
+        }
+        .heatmap-grid {
+            display: grid;
+            grid-template-columns: repeat(20, 1fr);
+            gap: 4px;
+        }
+        .heatmap-cell {
+            aspect-ratio: 1/1;
+            border-radius: 2px;
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 min-h-screen flex flex-col items-center">
+
+<header class="w-full max-w-5xl px-6 py-8 flex items-center justify-between">
+    <div class="flex items-center gap-2 text-slate-900 dark:text-slate-100">
+        <div class="bg-primary p-2 rounded-lg flex items-center justify-center">
+            <span class="material-symbols-outlined text-white text-2xl" style="font-variation-settings: 'FILL' 1">terminal</span>
+        </div>
+        <h2 class="text-xl font-extrabold tracking-tight">Todo Growth</h2>
+    </div>
+    <div class="hidden md:flex items-center gap-6">
+        <a class="text-sm font-medium text-sage-gray hover:text-primary transition-colors" href="#">소개</a>
+        <a class="text-sm font-medium text-sage-gray hover:text-primary transition-colors" href="#">기능</a>
+        <button id="btn-github-login-top"
+                class="bg-primary/10 text-primary px-4 py-2 rounded-full text-sm font-bold hover:bg-primary/20 transition-all">
+            GitHub 로그인
+        </button>
+    </div>
+</header>
+
+<main class="w-full max-w-4xl px-6 flex flex-col items-center text-center mt-12 md:mt-20">
+    <div class="space-y-6 mb-12">
+        <h1 class="text-4xl md:text-6xl font-black leading-[1.15] tracking-tight text-slate-900 dark:text-white">
+            할 일을 기록하고,<br/>
+            <span class="text-primary">성장을 공유하세요.</span>
+        </h1>
+        <p class="text-lg md:text-xl text-sage-gray dark:text-slate-400 font-medium">
+            GitHub 계정으로 3초 만에 시작하는 개발자 맞춤형 할 일 관리
+        </p>
+    </div>
+
+    <div class="flex flex-col items-center gap-4 w-full max-w-sm">
+        <button id="btn-github-login"
+                class="w-full flex items-center justify-center gap-3 bg-primary hover:bg-primary/90 text-slate-900 h-14 px-8 rounded-full font-bold text-lg shadow-lg shadow-primary/20 transition-all transform hover:scale-[1.02]">
+            <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/>
+            </svg>
+            <span>GitHub으로 계속하기</span>
+        </button>
+        <p class="text-xs text-sage-gray/60 dark:text-slate-500">
+            로그인 시 <a class="underline" href="#">이용약관</a> 및 <a class="underline" href="#">개인정보처리방침</a>에 동의하게 됩니다.
+        </p>
+    </div>
+
+    <div class="mt-24 mb-8 flex flex-col items-center gap-2">
+        <span class="px-4 py-1.5 bg-primary/10 text-primary text-sm font-bold rounded-full uppercase tracking-wider">Public Profile Preview</span>
+        <h4 class="text-slate-900 dark:text-white text-xl font-bold">이런 프로필이 만들어져요</h4>
+    </div>
+
+    <div class="w-full max-w-3xl mb-32 group">
+        <div class="relative bg-white dark:bg-slate-900 rounded-xl md:rounded-xl shadow-2xl overflow-hidden border border-slate-100 dark:border-slate-800 transition-all duration-500 group-hover:shadow-primary/10">
+            <div class="h-12 bg-slate-50 dark:bg-slate-800/50 flex items-center px-6 gap-1.5 border-b border-slate-100 dark:border-slate-800">
+                <div class="w-3 h-3 rounded-full bg-slate-300 dark:bg-slate-600"></div>
+                <div class="w-3 h-3 rounded-full bg-slate-300 dark:bg-slate-600"></div>
+                <div class="w-3 h-3 rounded-full bg-slate-300 dark:bg-slate-600"></div>
+                <div class="ml-4 flex-1">
+                    <div class="bg-slate-200 dark:bg-slate-700 h-4 w-32 rounded-full"></div>
+                </div>
+            </div>
+
+            <div class="p-8 md:p-12 text-left">
+                <div class="flex flex-col md:flex-row items-center md:items-start gap-8">
+                    <div class="relative">
+                        <div class="size-24 md:size-32 rounded-full bg-gradient-to-tr from-primary to-emerald-400 p-1">
+                            <img alt="Profile"
+                                 class="size-full rounded-full border-4 border-white dark:border-slate-900 object-cover"
+                                 src="https://lh3.googleusercontent.com/aida-public/AB6AXuDT6OxiSC6zG36hHgqFG0vQjOBdYJnlBqL3t-libqvtREuawFE1ffxRaNq8L-3r3gei97-sZW9bk-foNv8WLCAs0IssXU6ht3VQPW7cB0y4_u8Z7XaM55YhWvjSvK8fRsBykNeDa79h1bw8PyRyhWQhPQRioFk0Vhg5rqoElkZv2D1Z24Y1RxGXwHP7LNLYTcV57Ln8wRTVTD1dhEfSSS-qkadNiW7EDFYLviRqYhTkJvEXOOZHZzqeFMUXs_eh8EL2tOeyy2DIvXDX"/>
+                        </div>
+                        <div class="absolute bottom-1 right-1 size-6 bg-primary border-4 border-white dark:border-slate-900 rounded-full"></div>
+                    </div>
+                    <div class="flex-1 space-y-4 text-center md:text-left">
+                        <div>
+                            <h3 class="text-2xl font-bold text-slate-900 dark:text-white">@username_growth</h3>
+                            <p class="text-sage-gray dark:text-slate-400 mt-1">Full-stack Developer &amp; Learner</p>
+                        </div>
+                        <p class="text-slate-600 dark:text-slate-300 leading-relaxed max-w-md">
+                            "오늘의 작은 할 일이 내일의 큰 성장을 만듭니다. 매일의 기록을 통해 어제의 나보다 더 나은 오늘을 기록 중입니다."
+                        </p>
+                    </div>
+                </div>
+
+                <div class="mt-12">
+                    <div class="flex items-center justify-between mb-4">
+                        <h5 class="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                            <span class="material-symbols-outlined text-primary text-lg">auto_graph</span>
+                            성장 히트맵 (최근 1년)
+                        </h5>
+                        <span class="text-xs text-sage-gray">Total 1,248 Tasks</span>
+                    </div>
+                    <div class="heatmap-grid">
+                        <div class="heatmap-cell bg-slate-100 dark:bg-slate-800"></div>
+                        <div class="heatmap-cell bg-primary/20"></div>
+                        <div class="heatmap-cell bg-primary/40"></div>
+                        <div class="heatmap-cell bg-primary/10"></div>
+                        <div class="heatmap-cell bg-primary/60"></div>
+                        <div class="heatmap-cell bg-primary/20"></div>
+                        <div class="heatmap-cell bg-slate-100 dark:bg-slate-800"></div>
+                        <div class="heatmap-cell bg-primary/80"></div>
+                        <div class="heatmap-cell bg-primary"></div>
+                        <div class="heatmap-cell bg-primary/40"></div>
+                        <div class="heatmap-cell bg-primary/20"></div>
+                        <div class="heatmap-cell bg-primary/10"></div>
+                        <div class="heatmap-cell bg-primary/60"></div>
+                        <div class="heatmap-cell bg-primary/40"></div>
+                        <div class="heatmap-cell bg-slate-100 dark:bg-slate-800"></div>
+                        <div class="heatmap-cell bg-primary/20"></div>
+                        <div class="heatmap-cell bg-primary/40"></div>
+                        <div class="heatmap-cell bg-primary/10"></div>
+                        <div class="heatmap-cell bg-primary/60"></div>
+                        <div class="heatmap-cell bg-primary/20"></div>
+                        <div class="heatmap-cell bg-primary/80"></div>
+                        <div class="heatmap-cell bg-primary"></div>
+                        <div class="heatmap-cell bg-primary/20"></div>
+                        <div class="heatmap-cell bg-slate-100 dark:bg-slate-800"></div>
+                        <div class="heatmap-cell bg-primary/40"></div>
+                        <div class="heatmap-cell bg-primary/60"></div>
+                        <div class="heatmap-cell bg-primary/10"></div>
+                        <div class="heatmap-cell bg-primary/80"></div>
+                        <div class="heatmap-cell bg-primary/40"></div>
+                        <div class="heatmap-cell bg-primary/20"></div>
+                        <div class="heatmap-cell bg-primary/60"></div>
+                        <div class="heatmap-cell bg-slate-100 dark:bg-slate-800"></div>
+                        <div class="heatmap-cell bg-primary/40"></div>
+                        <div class="heatmap-cell bg-primary/10"></div>
+                        <div class="heatmap-cell bg-primary/20"></div>
+                        <div class="heatmap-cell bg-primary/60"></div>
+                        <div class="heatmap-cell bg-primary/80"></div>
+                        <div class="heatmap-cell bg-primary"></div>
+                        <div class="heatmap-cell bg-primary/40"></div>
+                        <div class="heatmap-cell bg-primary/10"></div>
+                    </div>
+                    <div class="mt-6 flex flex-wrap gap-4">
+                        <div class="flex items-center gap-2 bg-slate-50 dark:bg-slate-800 px-4 py-2 rounded-lg">
+                            <span class="text-xs font-bold text-sage-gray">연속 달성</span>
+                            <span class="text-primary font-extrabold">12일</span>
+                        </div>
+                        <div class="flex items-center gap-2 bg-slate-50 dark:bg-slate-800 px-4 py-2 rounded-lg">
+                            <span class="text-xs font-bold text-sage-gray">이번 달 할 일</span>
+                            <span class="text-primary font-extrabold">84건</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</main>
+
+<footer class="w-full bg-white dark:bg-slate-900 py-12 border-t border-slate-100 dark:border-slate-800 mt-auto">
+    <div class="max-w-5xl mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-8">
+        <div class="flex items-center gap-2 text-sage-gray opacity-80">
+            <span class="material-symbols-outlined text-lg">terminal</span>
+            <span class="text-sm font-bold">Todo Growth</span>
+        </div>
+        <div class="flex gap-8">
+            <a class="text-xs text-sage-gray hover:text-primary" href="#">이용약관</a>
+            <a class="text-xs text-sage-gray hover:text-primary" href="#">개인정보처리방침</a>
+            <a class="text-xs text-sage-gray hover:text-primary" href="#">문의하기</a>
+        </div>
+        <p class="text-xs text-sage-gray">&copy; 2024 Todo Growth. All rights reserved.</p>
+    </div>
+</footer>
+
+<script th:inline="javascript">
+    const API_BASE = /*[[${apiBase}]]*/ '';
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const btnLogin = document.getElementById('btn-github-login');
+        const btnLoginTop = document.getElementById('btn-github-login-top');
+
+        function handleGitHubLogin() {
+            window.location.href = `${API_BASE}/oauth2/authorization/github`;
+        }
+
+        if (btnLogin) btnLogin.addEventListener('click', handleGitHubLogin);
+        if (btnLoginTop) btnLoginTop.addEventListener('click', handleGitHubLogin);
+    });
+</script>
+</body>
+</html>
