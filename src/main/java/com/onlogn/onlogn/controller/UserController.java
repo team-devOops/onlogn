@@ -10,6 +10,8 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -50,6 +52,39 @@ public class UserController {
     public ResponseEntity<DataMetaEnvelope<UserResponse>> me() {
         UUID userId = (UUID) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         UserEntity user = userService.getCurrentUser(userId);
+
+        UserResponse response = new UserResponse(
+                user.getId().toString(),
+                user.getProfileSlug(),
+                user.getEmail(),
+                user.getDisplayName(),
+                user.getAvatarUrl(),
+                user.getTimezone(),
+                user.getCreatedAt().toString(),
+                user.getUpdatedAt().toString()
+        );
+
+        return ResponseEntity.ok(DataMetaEnvelope.of(response));
+    }
+
+    public record UpdateUserRequest(
+            String bio,
+            @JsonProperty("display_name") String displayName,
+            String timezone
+    ) {
+    }
+
+    @PatchMapping("/me")
+    @Operation(
+            operationId = "updateCurrentUser",
+            summary = "현재 인증 사용자 프로필 수정",
+            description = "인증 사용자의 프로필 정보를 부분 수정한다."
+    )
+    @ApiResponse(responseCode = "200", description = "프로필 수정 성공.")
+    @ApiResponse(responseCode = "401", description = "RFC9457 problem details 응답.")
+    public ResponseEntity<DataMetaEnvelope<UserResponse>> updateMe(@RequestBody UpdateUserRequest request) {
+        UUID userId = (UUID) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        UserEntity user = userService.updateCurrentUser(userId, request.bio(), request.displayName(), request.timezone());
 
         UserResponse response = new UserResponse(
                 user.getId().toString(),

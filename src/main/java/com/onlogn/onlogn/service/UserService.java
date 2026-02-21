@@ -26,4 +26,13 @@ public class UserService {
                         "User not found",
                         "/api/v1/users/me"));
     }
+
+    @Transactional
+    public UserEntity updateCurrentUser(UUID userId, String bio, String displayName, String timezone) {
+        UserEntity user = getCurrentUser(userId);
+        if (bio != null) user.setBio(bio);
+        if (displayName != null) user.setDisplayName(displayName);
+        if (timezone != null) user.setTimezone(timezone);
+        return userRepository.save(user);
+    }
 }
