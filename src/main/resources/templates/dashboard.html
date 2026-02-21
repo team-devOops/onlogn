@@ -167,6 +167,16 @@
             -ms-overflow-style: none;
             scrollbar-width: none;
         }
+        .toggle-switch {
+            @apply relative inline-flex h-5 w-10 items-center rounded-full transition-colors cursor-pointer;
+        }
+        .toggle-switch.active { @apply bg-primary; }
+        .toggle-switch:not(.active) { @apply bg-gray-200; }
+        .toggle-switch .toggle-dot {
+            @apply inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform;
+        }
+        .toggle-switch.active .toggle-dot { transform: translateX(1.25rem); }
+        .toggle-switch:not(.active) .toggle-dot { transform: translateX(0.15rem); }
     </style>
 </head>
 <body class="min-h-screen">
@@ -523,6 +533,67 @@
     </div>
 </div>
 
+<div id="edit-task-modal" class="hidden fixed inset-0 z-50">
+    <div id="edit-modal-backdrop" class="fixed inset-0 bg-black/40 backdrop-blur-sm"></div>
+    <div class="fixed inset-0 flex items-end md:items-center justify-center">
+        <div class="bg-white dark:bg-[#1c2624] w-full max-w-xl md:rounded-3xl rounded-t-3xl shadow-2xl max-h-[90vh] overflow-y-auto hide-scrollbar">
+            <div class="flex flex-col items-center pt-3">
+                <div class="w-10 h-1 bg-gray-200 dark:bg-white/10 rounded-full mb-4 md:hidden"></div>
+                <div class="w-full px-6 flex justify-end">
+                    <button id="edit-modal-close" class="size-8 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-white/5 transition-all">
+                        <span class="material-symbols-outlined text-gray-400 text-xl">close</span>
+                    </button>
+                </div>
+            </div>
+            <div class="px-8 pb-10 space-y-7">
+                <div class="flex items-center gap-4">
+                    <div id="edit-check-btn" class="cursor-pointer flex-shrink-0">
+                        <div class="size-6 rounded border-2 border-gray-300 hover:border-primary transition-colors flex items-center justify-center">
+                        </div>
+                    </div>
+                    <input id="edit-title-input" class="flex-1 w-full text-2xl md:text-3xl font-bold border-none p-0 focus:ring-0 bg-transparent text-[#111816] dark:text-white placeholder:text-gray-300" placeholder="무엇을 할 건가요?" type="text"/>
+                </div>
+
+                <div class="flex items-center gap-2 pl-10">
+                    <button id="edit-date-btn" class="flex items-center gap-2 px-3 py-1.5 bg-gray-50/80 dark:bg-white/5 rounded-lg text-sm font-medium hover:bg-gray-100 transition-all text-gray-600 dark:text-gray-300 border border-transparent hover:border-gray-200">
+                        <span class="material-symbols-outlined text-[18px] text-gray-400">calendar_today</span>
+                        <span id="edit-date-text"></span>
+                        <span id="edit-time-separator" class="hidden w-px h-3 bg-gray-300 mx-2"></span>
+                        <span id="edit-time-icon" class="hidden material-symbols-outlined text-[18px] text-gray-400">schedule</span>
+                        <span id="edit-time-text" class="hidden"></span>
+                    </button>
+                </div>
+
+                <div id="edit-tags-container" class="flex items-center gap-2 overflow-x-auto hide-scrollbar pb-1 pl-10"></div>
+
+                <div class="flex items-center justify-between py-1 pl-10 pr-1">
+                    <div class="flex items-center gap-2 text-gray-500">
+                        <span class="material-symbols-outlined text-[20px] text-gray-400">public</span>
+                        <span class="text-sm font-medium text-gray-500">공개 설정</span>
+                    </div>
+                    <button id="edit-visibility-toggle" class="toggle-switch active">
+                        <span class="toggle-dot"></span>
+                    </button>
+                </div>
+
+                <div class="flex items-center gap-3 pl-10 pr-1 py-1">
+                    <span class="material-symbols-outlined text-gray-400 text-[20px]">link</span>
+                    <input id="edit-link-input" class="flex-1 text-sm bg-transparent border-none p-0 focus:ring-0 text-primary placeholder:text-gray-300 transition-colors" placeholder="링크 추가" type="text"/>
+                </div>
+
+                <div class="pt-6 space-y-4">
+                    <button id="btn-edit-save" class="w-full bg-primary hover:bg-primary/90 text-white font-bold py-4 rounded-xl transition-all active:scale-[0.98] shadow-sm shadow-primary/20">
+                        저장
+                    </button>
+                    <div class="flex justify-center">
+                        <button id="btn-edit-delete" class="text-[12px] font-medium text-red-400/60 hover:text-red-500 transition-all px-4 py-1 hover:bg-red-50 rounded">할 일 삭제</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
     const API_BASE = '';
 </script>
@@ -589,6 +660,7 @@
             document.getElementById('btn-add-task').addEventListener('click', openAddTask);
             initModal();
             initSettings();
+            initEditModal();
 
             fetchCurrentUser();
             render();
@@ -931,6 +1003,7 @@
             });
 
             actions.querySelector('[data-action="delete"]').addEventListener('click', () => deleteTask(task.id));
+            actions.querySelector('[data-action="edit"]').addEventListener('click', () => openEditTask(task.id));
 
             initSwipe(container, content);
 
@@ -1004,6 +1077,148 @@
                 if (!container.contains(e.target) && container.classList.contains('swiped')) {
                     container.classList.remove('swiped');
                 }
+            });
+        }
+
+        let editingTaskId = null;
+        let editIsPublic = true;
+
+        function openEditTask(taskId) {
+            editingTaskId = taskId;
+            fetch(`/api/v1/tasks/${taskId}`, { headers: authHeaders() })
+                .then(r => r.ok ? r.json() : null)
+                .then(resp => {
+                    if (!resp || !resp.data) return;
+                    const t = resp.data;
+                    document.getElementById('edit-title-input').value = t.title || '';
+
+                    const dateText = t.due_date || '';
+                    if (dateText) {
+                        const d = new Date(dateText + 'T00:00:00');
+                        document.getElementById('edit-date-text').textContent = `${d.getMonth()+1}월 ${d.getDate()}일 ${DAY_NAMES[d.getDay()]}요일`;
+                    } else {
+                        document.getElementById('edit-date-text').textContent = '날짜 미지정';
+                    }
+
+                    if (t.start_time) {
+                        document.getElementById('edit-time-separator').classList.remove('hidden');
+                        document.getElementById('edit-time-icon').classList.remove('hidden');
+                        document.getElementById('edit-time-text').classList.remove('hidden');
+                        document.getElementById('edit-time-text').textContent = formatTimeLabel(t.start_time, t.end_time) || '';
+                    } else {
+                        document.getElementById('edit-time-separator').classList.add('hidden');
+                        document.getElementById('edit-time-icon').classList.add('hidden');
+                        document.getElementById('edit-time-text').classList.add('hidden');
+                    }
+
+                    editIsPublic = t.visibility === 'public';
+                    const toggle = document.getElementById('edit-visibility-toggle');
+                    toggle.classList.toggle('active', editIsPublic);
+
+                    document.getElementById('edit-link-input').value = (t.reference_links && t.reference_links.length > 0) ? t.reference_links[0] : '';
+
+                    const isDone = t.status === 'done';
+                    const checkInner = document.querySelector('#edit-check-btn > div');
+                    if (isDone) {
+                        checkInner.className = 'size-6 rounded-full bg-primary flex items-center justify-center';
+                        checkInner.innerHTML = '<span class="material-symbols-outlined text-white text-xs font-bold">check</span>';
+                    } else {
+                        checkInner.className = 'size-6 rounded border-2 border-gray-300 hover:border-primary transition-colors flex items-center justify-center';
+                        checkInner.innerHTML = '';
+                    }
+
+                    renderEditTags(t.tags || []);
+
+                    document.getElementById('edit-task-modal').classList.remove('hidden');
+                    document.body.style.overflow = 'hidden';
+                })
+                .catch(() => {});
+        }
+
+        function closeEditTask() {
+            document.getElementById('edit-task-modal').classList.add('hidden');
+            document.body.style.overflow = '';
+            editingTaskId = null;
+        }
+
+        function saveEditTask() {
+            const title = document.getElementById('edit-title-input').value.trim();
+            if (!title) return;
+            const link = document.getElementById('edit-link-input').value.trim();
+            const selectedTag = document.querySelector('#edit-tags-container .edit-tag-btn.active');
+            const tags = selectedTag ? [selectedTag.dataset.tag] : [];
+
+            const payload = {
+                title: title,
+                visibility: editIsPublic ? 'public' : 'private',
+                tags: tags,
+                reference_links: link ? [link] : []
+            };
+
+            fetch(`/api/v1/tasks/${editingTaskId}`, {
+                method: 'PATCH',
+                headers: authHeaders(),
+                body: JSON.stringify(payload)
+            }).then(r => {
+                if (r.ok) {
+                    closeEditTask();
+                    fetchTasks(selectedDate);
+                    render();
+                }
+            });
+        }
+
+        function renderEditTags(currentTags) {
+            const container = document.getElementById('edit-tags-container');
+            container.innerHTML = '';
+            fetch('/api/v1/groups?limit=100', { headers: authHeaders() })
+                .then(r => r.ok ? r.json() : null)
+                .then(resp => {
+                    const groups = (resp && resp.data) ? resp.data : [];
+                    const allTags = [{ id: 'default', name: '기본' }, ...groups.map(g => ({ id: g.description || g.id, name: g.description || g.id }))];
+                    allTags.forEach(tag => {
+                        const btn = document.createElement('button');
+                        const isActive = currentTags.includes(tag.id) || (tag.id === 'default' && currentTags.length === 0);
+                        btn.className = 'edit-tag-btn px-3 py-1 rounded-md text-[11px] font-bold whitespace-nowrap transition-all flex items-center gap-1.5 '
+                            + (isActive ? 'bg-primary/10 text-primary active' : 'bg-gray-50 dark:bg-white/5 text-gray-400 hover:bg-gray-100 border border-transparent');
+                        btn.dataset.tag = tag.id;
+                        if (isActive) btn.innerHTML = `<span class="size-1.5 rounded-full bg-primary"></span>${escapeHtml(tag.name).toUpperCase()}`;
+                        else btn.textContent = tag.name.toUpperCase();
+                        btn.addEventListener('click', () => {
+                            container.querySelectorAll('.edit-tag-btn').forEach(b => {
+                                b.classList.remove('active', 'bg-primary/10', 'text-primary');
+                                b.classList.add('bg-gray-50', 'text-gray-400');
+                                b.innerHTML = b.dataset.tag === 'default' ? '기본' : escapeHtml(b.textContent);
+                            });
+                            btn.classList.add('active', 'bg-primary/10', 'text-primary');
+                            btn.classList.remove('bg-gray-50', 'text-gray-400');
+                            btn.innerHTML = `<span class="size-1.5 rounded-full bg-primary"></span>${escapeHtml(tag.name).toUpperCase()}`;
+                        });
+                        container.appendChild(btn);
+                    });
+                })
+                .catch(() => {});
+        }
+
+        function initEditModal() {
+            document.getElementById('edit-modal-close').addEventListener('click', closeEditTask);
+            document.getElementById('edit-modal-backdrop').addEventListener('click', closeEditTask);
+            document.getElementById('btn-edit-save').addEventListener('click', saveEditTask);
+            document.getElementById('btn-edit-delete').addEventListener('click', () => {
+                if (editingTaskId) { deleteTask(editingTaskId); closeEditTask(); }
+            });
+            document.getElementById('edit-visibility-toggle').addEventListener('click', () => {
+                editIsPublic = !editIsPublic;
+                document.getElementById('edit-visibility-toggle').classList.toggle('active', editIsPublic);
+            });
+            document.getElementById('edit-check-btn').addEventListener('click', () => {
+                if (!editingTaskId) return;
+                toggleTask(editingTaskId);
+                closeEditTask();
+            });
+            document.getElementById('edit-title-input').addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') saveEditTask();
+                if (e.key === 'Escape') closeEditTask();
             });
         }
 
