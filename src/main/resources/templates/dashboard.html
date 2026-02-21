@@ -492,8 +492,12 @@
                     </div>
                 </div>
             </div>
+            <div id="picker-time-error" class="hidden mt-3 flex items-center gap-1.5 text-red-500 ml-1">
+                <span class="material-symbols-outlined text-sm">info</span>
+                <p class="text-[11px] font-medium">종료 시간은 시작 시간보다 이후여야 합니다.</p>
+            </div>
         </div>
-        <div class="px-6 pb-6 pt-2">
+        <div class="px-6 pb-8 pt-2">
             <button id="btn-picker-confirm" class="w-full bg-primary hover:bg-primary/90 text-white text-sm font-bold py-3.5 rounded-xl transition-all active:scale-[0.98] shadow-lg shadow-primary/20">
                 선택 완료
             </button>
@@ -949,6 +953,8 @@
             document.getElementById('picker-prev-month').addEventListener('click', () => changePickerMonth(-1));
             document.getElementById('picker-next-month').addEventListener('click', () => changePickerMonth(1));
             document.getElementById('btn-picker-confirm').addEventListener('click', confirmDateTimePicker);
+            document.getElementById('picker-start-time').addEventListener('change', validatePickerTime);
+            document.getElementById('picker-end-time').addEventListener('change', validatePickerTime);
 
             populateTimeOptions();
         }
@@ -978,6 +984,7 @@
             pickerYear = d.getFullYear();
             pickerMonth = d.getMonth();
             renderPickerCalendar();
+            validatePickerTime();
             const modal = document.getElementById('datetime-picker-modal');
             modal.classList.remove('hidden');
         }
@@ -1022,7 +1029,42 @@
             }
         }
 
+        function validatePickerTime() {
+            const startVal = document.getElementById('picker-start-time').value;
+            const endVal = document.getElementById('picker-end-time').value;
+            const isInvalid = startVal >= endVal;
+
+            const errorEl = document.getElementById('picker-time-error');
+            const confirmBtn = document.getElementById('btn-picker-confirm');
+            const startSel = document.getElementById('picker-start-time');
+            const endSel = document.getElementById('picker-end-time');
+
+            if (isInvalid) {
+                errorEl.classList.remove('hidden');
+                errorEl.style.display = 'flex';
+                startSel.classList.add('border', 'border-red-500/30');
+                startSel.classList.remove('border-none');
+                endSel.classList.add('border', 'border-red-500/30');
+                endSel.classList.remove('border-none');
+                confirmBtn.disabled = true;
+                confirmBtn.className = 'w-full bg-gray-200 dark:bg-gray-800 text-gray-400 dark:text-gray-500 text-sm font-bold py-3.5 rounded-xl cursor-not-allowed transition-all';
+            } else {
+                errorEl.classList.add('hidden');
+                errorEl.style.display = '';
+                startSel.classList.remove('border', 'border-red-500/30');
+                startSel.classList.add('border-none');
+                endSel.classList.remove('border', 'border-red-500/30');
+                endSel.classList.add('border-none');
+                confirmBtn.disabled = false;
+                confirmBtn.className = 'w-full bg-primary hover:bg-primary/90 text-white text-sm font-bold py-3.5 rounded-xl transition-all active:scale-[0.98] shadow-lg shadow-primary/20';
+            }
+
+            return !isInvalid;
+        }
+
         function confirmDateTimePicker() {
+            if (!validatePickerTime()) return;
+
             taskStartTime = document.getElementById('picker-start-time').value;
             taskEndTime = document.getElementById('picker-end-time').value;
 
