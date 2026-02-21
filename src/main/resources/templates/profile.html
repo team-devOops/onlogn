@@ -373,7 +373,7 @@
             switchAiPeriod(currentAiPeriod);
 
             fetchGroupDistribution();
-            fetchKeywordsFromWeekly();
+            fetchKeywordsFromProfileTasks();
         }
 
         function fetchProfile() {
@@ -446,48 +446,43 @@
             ).join('');
         }
 
-        function fetchKeywordsFromWeekly() {
-            const headers = { 'Content-Type': 'application/json' };
-            const token = getAuthToken();
-            if (token) headers['Authorization'] = 'Bearer ' + token;
-
-            fetch(`${API_BASE}/api/v1/reviews/weekly`, {
-                method: 'POST',
-                headers: headers
-            })
+        function fetchKeywordsFromProfileTasks() {
+            fetch(`${API_BASE}/api/v1/profiles/${PROFILE_SLUG}/tasks?limit=${MAX_INSIGHT_TASKS}`)
                 .then(r => r.ok ? r.json() : null)
                 .then(resp => {
-                    const taskCount = resp && resp.data ? (resp.data.task_count || 0) : 0;
-                    if (taskCount === 0) {
-                        renderKeywords([]);
-                        return;
-                    }
-                    const reviewText = resp && resp.data ? (resp.data.review || '') : '';
-                    const keywords = extractKeywordsFromText(reviewText);
+                    const tasks = resp && resp.data ? resp.data : [];
+                    const keywords = extractKeywordsFromTasks(tasks);
                     renderKeywords(keywords);
                 })
                 .catch(() => renderKeywords([]));
         }
 
-        function extractKeywordsFromText(text) {
-            if (!text) return [];
+        function extractKeywordsFromTasks(tasks) {
+            if (!tasks || tasks.length === 0) return [];
 
             const counts = {};
-            const tokens = text
-                .replace(/[#*`>\-]/g, ' ')
-                .match(/[A-Za-z가-힣][A-Za-z가-힣0-9_-]{1,19}/g);
 
-            if (!tokens) return [];
+            tasks.forEach(task => {
+                (task.tags || []).forEach(tag => {
+                    const normalizedTag = String(tag || '').trim().toLowerCase();
+                    if (!normalizedTag || KEYWORD_STOPWORDS.has(normalizedTag)) return;
+                    counts[normalizedTag] = (counts[normalizedTag] || 0) + 3;
+                });
 
-            tokens.forEach(token => {
-                const word = token.toLowerCase();
-                if (word.length < 2) return;
-                if (KEYWORD_STOPWORDS.has(word)) return;
-                counts[word] = (counts[word] || 0) + 1;
+                const title = String(task.title || '').toLowerCase();
+                const tokens = title.match(/[A-Za-z가-힣][A-Za-z가-힣0-9_-]{1,19}/g) || [];
+                tokens.forEach(token => {
+                    if (token.length < 2) return;
+                    if (KEYWORD_STOPWORDS.has(token)) return;
+                    counts[token] = (counts[token] || 0) + 1;
+                });
             });
 
             return Object.entries(counts)
-                .sort((a, b) => b[1] - a[1])
+                .sort((a, b) => {
+                    if (b[1] !== a[1]) return b[1] - a[1];
+                    return a[0].localeCompare(b[0], 'ko');
+                })
                 .slice(0, 8)
                 .map(([word]) => word);
         }

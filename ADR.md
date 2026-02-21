@@ -212,3 +212,12 @@
 - **결정**: 애플리케이션 로직을 추가하지 않고, `docs/migrate-dummy-data-to-user.sql` 오프라인 스크립트로 더미데이터 소유권 이전을 수행한다.
 - **근거**: 대상은 운영 기능이 아닌 dev 데이터 정리 작업이며, owner FK를 일괄 갱신하는 작업은 트랜잭션 SQL이 가장 단순하고 재현 가능하다.
 - **결과**: 지정한 source/target UUID 기준으로 `groups`, `tasks`, `refresh_tokens`, `reactions` 소유권을 이전하며, reaction unique 충돌은 사전 중복 삭제로 방지한다.
+
+---
+
+## ADR-020: 공개 프로필 관심 키워드는 슬러그 소유자의 공개 task 데이터만 사용
+
+- **상태**: 승인
+- **결정**: `profile.html`의 관심 키워드 영역은 `POST /api/v1/reviews/weekly`를 사용하지 않고, `GET /api/v1/profiles/{slug}/tasks?limit=100` 응답을 기반으로 키워드를 계산한다.
+- **근거**: `/reviews/weekly`는 인증된 조회자 principal 기준 데이터이므로 타인 프로필 조회 시 키워드가 섞여 보일 수 있다.
+- **결과**: 관심 키워드는 항상 프로필 소유자의 공개 task(`tags`, `title`)만 반영되어, 조회자 계정과 무관하게 일관된 프로필 컨텍스트를 유지한다.
