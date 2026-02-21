@@ -374,7 +374,7 @@ O(NlogN)은 단순한 할 일 관리(TODO)가 아니라, 실행 기록을 꾸준
 |---------|---------------------|
 | 아바타 + 이름 + @slug + bio | `GET /profiles/{slug}` |
 | 총 task 수 / 완료율 / 연속 일수 | `stats_summary` + 클라이언트 계산 |
-| AI 생산성 요약 | `GET /profiles/{slug}/tasks?due_date_from&due_date_to&limit=100` 기반 클라이언트 집계 (주간/월간/30일 토글) |
+| AI 생산성 요약 | 인증 사용자 우선 `POST /profiles/me/summary` 사용, 미인증/실패 시 `GET /profiles/{slug}/tasks?due_date_from&due_date_to&limit=100` 기반 폴백 집계 |
 | 월간 히트맵 | `GET /profiles/{slug}/tasks?due_date_from&due_date_to&limit=100` 응답에서 `status=done` 완료 건수 기준 클라이언트 집계 |
 | 그룹 분포 (디자인 45% / 개발 30% 등) | `GET /profiles/{slug}/tasks?limit=100` 기반 클라이언트 집계 |
 | 관심 키워드 | `GET /profiles/{slug}/tasks?limit=100` 응답의 해당 회원 공개 task(`tags` + `title`) 기반 클라이언트 추출 |

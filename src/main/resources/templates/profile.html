@@ -288,16 +288,50 @@
             aiText.textContent = 'AI 인사이트를 불러오는 중입니다...';
             const requestId = ++aiRequestId;
 
-            fetchTasksByPeriod(period, MAX_INSIGHT_TASKS)
-                .then(tasks => {
+            fetchMyProfileSummary()
+                .then(mySummary => {
                     if (requestId !== aiRequestId) return;
-                    const summary = buildAiSummaryFromTasks(tasks, period);
-                    aiText.textContent = summary;
+                    if (mySummary) {
+                        aiText.textContent = mySummary;
+                        return;
+                    }
+                    return fetchTasksByPeriod(period, MAX_INSIGHT_TASKS).then(tasks => {
+                        if (requestId !== aiRequestId) return;
+                        const summary = buildAiSummaryFromTasks(tasks, period);
+                        aiText.textContent = summary;
+                    });
+                })
+                .catch(() => {
+                    if (requestId !== aiRequestId) return;
+                    return fetchTasksByPeriod(period, MAX_INSIGHT_TASKS).then(tasks => {
+                        if (requestId !== aiRequestId) return;
+                        const summary = buildAiSummaryFromTasks(tasks, period);
+                        aiText.textContent = summary;
+                    });
                 })
                 .catch(() => {
                     if (requestId !== aiRequestId) return;
                     aiText.textContent = 'AI 인사이트를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.';
                 });
+        }
+
+        function fetchMyProfileSummary() {
+            const token = getAuthToken();
+            if (!token) return Promise.resolve(null);
+
+            return fetch(`${API_BASE}/api/v1/profiles/me/summary`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + token
+                }
+            })
+                .then(r => r.ok ? r.json() : null)
+                .then(resp => {
+                    const summary = resp && resp.data ? resp.data.summary : null;
+                    return summary && String(summary).trim().length > 0 ? summary : null;
+                })
+                .catch(() => null);
         }
 
         function getPeriodWindow(period) {
