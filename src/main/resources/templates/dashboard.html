@@ -938,7 +938,6 @@
         }
 
         function deleteTask(taskId) {
-            if (!confirm('이 할 일을 삭제할까요?')) return;
             fetch(`/api/v1/tasks/${taskId}`, { method: 'DELETE', headers: authHeaders() })
                 .then(() => { fetchTasks(selectedDate); fetchMonthlyStats(); })
                 .catch(() => {});
