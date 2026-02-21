@@ -292,8 +292,8 @@
 
 <div id="add-task-modal" class="hidden fixed inset-0 z-50">
     <div id="modal-backdrop" class="fixed inset-0 bg-black/40 backdrop-blur-sm"></div>
-    <div class="fixed inset-0 flex items-center justify-center p-4">
-        <div class="relative bg-white dark:bg-[#1c2624] w-full max-w-[580px] rounded-2xl shadow-2xl overflow-hidden p-8 flex flex-col gap-8">
+    <div id="add-task-overlay" class="fixed inset-0 flex items-center justify-center p-4">
+        <div id="add-task-panel" class="relative bg-white dark:bg-[#1c2624] w-full max-w-[580px] rounded-2xl shadow-2xl overflow-hidden p-8 flex flex-col gap-8">
             <button id="modal-close" class="absolute top-4 right-4 z-20 size-8 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-white/10 cursor-pointer transition-colors text-gray-400 hover:text-gray-600">
                 <span class="material-symbols-outlined text-xl">close</span>
             </button>
@@ -361,7 +361,7 @@
 
 <div id="settings-modal" class="hidden fixed inset-0 z-[100] items-center justify-center p-0 md:p-4">
     <div id="settings-backdrop" class="absolute inset-0 bg-black/40 backdrop-blur-sm"></div>
-    <div class="modal-container relative bg-white dark:bg-[#1c2624] w-full max-w-[680px] h-full md:h-[520px] md:rounded-2xl shadow-2xl overflow-hidden flex flex-col md:flex-row settings-inner mx-auto my-auto">
+    <div id="settings-panel" class="modal-container relative bg-white dark:bg-[#1c2624] w-full max-w-[680px] h-full md:h-[520px] md:rounded-2xl shadow-2xl overflow-hidden flex flex-col md:flex-row settings-inner mx-auto my-auto">
         <button id="settings-close" class="absolute top-4 right-4 z-20 size-8 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-white/10 cursor-pointer transition-colors">
             <span class="material-symbols-outlined text-xl opacity-40">close</span>
         </button>
@@ -460,7 +460,7 @@
 
 <div id="logout-confirm-popup" class="hidden fixed inset-0 z-[120] items-center justify-center p-4">
     <div id="logout-confirm-backdrop" class="absolute inset-0 bg-black/60 backdrop-blur-[2px]"></div>
-    <div class="relative bg-white dark:bg-[#1c2624] w-full max-w-[320px] p-8 rounded-[1.5rem] shadow-2xl flex flex-col items-center gap-8 mx-auto my-auto">
+    <div id="logout-confirm-panel" class="relative bg-white dark:bg-[#1c2624] w-full max-w-[320px] p-8 rounded-[1.5rem] shadow-2xl flex flex-col items-center gap-8 mx-auto my-auto">
         <div class="flex flex-col items-center gap-2">
             <span class="material-symbols-outlined text-primary text-3xl opacity-80">logout</span>
             <p class="text-[17px] font-semibold text-center mt-2">로그아웃 하시겠습니까?</p>
@@ -478,7 +478,7 @@
 
 <div id="datetime-picker-modal" class="hidden fixed inset-0 z-[110] flex items-center justify-center p-4">
     <div id="datetime-picker-backdrop" class="absolute inset-0 bg-black/40 backdrop-blur-sm"></div>
-    <div class="relative bg-white dark:bg-[#1c2624] w-full max-w-[360px] rounded-[2rem] shadow-[0_20px_50px_rgba(0,0,0,0.15)] overflow-hidden">
+    <div id="datetime-picker-panel" class="relative bg-white dark:bg-[#1c2624] w-full max-w-[360px] rounded-[2rem] shadow-[0_20px_50px_rgba(0,0,0,0.15)] overflow-hidden">
         <div class="px-6 pt-6 pb-2 flex items-center justify-between">
             <button id="picker-prev-month" class="size-8 flex items-center justify-center hover:bg-gray-100 rounded-full transition-colors">
                 <span class="material-symbols-outlined text-gray-400">chevron_left</span>
@@ -537,7 +537,7 @@
 <div id="edit-task-modal" class="hidden fixed inset-0 z-50">
     <div id="edit-modal-backdrop" class="fixed inset-0 bg-black/40 backdrop-blur-sm"></div>
     <div class="fixed inset-0 flex items-end md:items-center justify-center">
-        <div class="bg-white dark:bg-[#1c2624] w-full max-w-xl md:rounded-3xl rounded-t-3xl shadow-2xl max-h-[90vh] overflow-y-auto hide-scrollbar">
+        <div id="edit-task-panel" class="bg-white dark:bg-[#1c2624] w-full max-w-xl md:rounded-3xl rounded-t-3xl shadow-2xl max-h-[90vh] overflow-y-auto hide-scrollbar">
             <div class="flex flex-col items-center pt-3">
                 <div class="w-10 h-1 bg-gray-200 dark:bg-white/10 rounded-full mb-4 md:hidden"></div>
                 <div class="w-full px-6 flex justify-end">
@@ -771,11 +771,43 @@
             initModal();
             initSettings();
             initEditModal();
+            initGlobalEscDismiss();
 
             fetchCurrentUser().then(authenticated => {
                 if (!authenticated) return;
                 render();
                 fetchTasks(selectedDate);
+            });
+        }
+
+        function isModalVisible(modalId) {
+            const modal = document.getElementById(modalId);
+            return Boolean(modal) && !modal.classList.contains('hidden');
+        }
+
+        function initGlobalEscDismiss() {
+            document.addEventListener('keydown', (e) => {
+                if (e.key !== 'Escape') return;
+
+                if (isModalVisible('logout-confirm-popup')) {
+                    closeLogoutConfirm();
+                    return;
+                }
+                if (isModalVisible('datetime-picker-modal')) {
+                    closeDateTimePicker();
+                    return;
+                }
+                if (isModalVisible('edit-task-modal')) {
+                    closeEditTask();
+                    return;
+                }
+                if (isModalVisible('add-task-modal')) {
+                    closeAddTask();
+                    return;
+                }
+                if (isModalVisible('settings-modal')) {
+                    closeSettings();
+                }
             });
         }
 
@@ -1500,6 +1532,9 @@
         function initEditModal() {
             document.getElementById('edit-modal-close').addEventListener('click', closeEditTask);
             document.getElementById('edit-modal-backdrop').addEventListener('click', closeEditTask);
+            document.getElementById('edit-task-modal').addEventListener('click', (e) => {
+                if (!e.target.closest('#edit-task-panel')) closeEditTask();
+            });
             document.getElementById('btn-edit-save').addEventListener('click', saveEditTask);
             document.getElementById('edit-date-btn').addEventListener('click', openEditDateTimePicker);
             document.getElementById('btn-edit-delete').addEventListener('click', () => {
@@ -1681,6 +1716,9 @@
         function initModal() {
             document.getElementById('modal-close').addEventListener('click', closeAddTask);
             document.getElementById('modal-backdrop').addEventListener('click', closeAddTask);
+            document.getElementById('add-task-modal').addEventListener('click', (e) => {
+                if (!e.target.closest('#add-task-panel')) closeAddTask();
+            });
             document.getElementById('btn-save-task').addEventListener('click', saveTask);
 
             document.getElementById('task-title-input').addEventListener('keydown', (e) => {
@@ -1694,6 +1732,9 @@
 
             document.getElementById('modal-date-display').addEventListener('click', openDateTimePicker);
             document.getElementById('datetime-picker-backdrop').addEventListener('click', closeDateTimePicker);
+            document.getElementById('datetime-picker-modal').addEventListener('click', (e) => {
+                if (!e.target.closest('#datetime-picker-panel')) closeDateTimePicker();
+            });
             document.getElementById('picker-prev-month').addEventListener('click', () => changePickerMonth(-1));
             document.getElementById('picker-next-month').addEventListener('click', () => changePickerMonth(1));
             document.getElementById('btn-picker-confirm').addEventListener('click', confirmDateTimePicker);
@@ -1850,6 +1891,9 @@
             document.getElementById('user-avatar').addEventListener('click', openSettings);
             document.getElementById('settings-close').addEventListener('click', closeSettings);
             document.getElementById('settings-backdrop').addEventListener('click', closeSettings);
+            document.getElementById('settings-modal').addEventListener('click', (e) => {
+                if (!e.target.closest('#settings-panel')) closeSettings();
+            });
 
             document.querySelectorAll('.settings-tab-btn').forEach(btn => {
                 btn.addEventListener('click', () => switchSettingsTab(btn.dataset.settingsTab));
@@ -1917,6 +1961,7 @@
             nameInput.addEventListener('keydown', (e) => {
                 if (e.key === 'Escape') {
                     e.preventDefault();
+                    e.stopPropagation();
                     closeDisplayNameEditor(true);
                 }
             });
@@ -2006,6 +2051,9 @@
             });
             document.getElementById('btn-logout-cancel').addEventListener('click', closeLogoutConfirm);
             document.getElementById('logout-confirm-backdrop').addEventListener('click', closeLogoutConfirm);
+            document.getElementById('logout-confirm-popup').addEventListener('click', (e) => {
+                if (!e.target.closest('#logout-confirm-panel')) closeLogoutConfirm();
+            });
         })();
 
         function openSettings() {
