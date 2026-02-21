@@ -66,7 +66,7 @@
         <p id="profile-username" class="text-sm font-semibold text-primary mb-4"></p>
         <p id="profile-bio" class="text-[#5f867e] dark:text-primary/70 max-w-lg leading-relaxed mb-8"></p>
 
-        <div class="grid grid-cols-3 gap-4 md:gap-12 w-full max-w-2xl border-t border-primary/10 pt-8">
+        <div id="stats-public" class="grid grid-cols-3 gap-4 md:gap-12 w-full max-w-2xl border-t border-primary/10 pt-8">
             <div class="flex flex-col">
                 <span id="stat-total" class="text-2xl font-bold">0</span>
                 <span class="text-[10px] uppercase tracking-widest font-bold opacity-50">총 할 일</span>
@@ -80,7 +80,41 @@
                 <span class="text-[10px] uppercase tracking-widest font-bold opacity-50">연속 달성일</span>
             </div>
         </div>
+
+        <div id="stats-private" class="hidden grid grid-cols-3 gap-4 md:gap-12 w-full max-w-2xl border-t border-primary/10 pt-8">
+            <div class="flex flex-col items-center">
+                <div class="w-12 h-6 bg-primary/10 rounded-md animate-pulse mb-2"></div>
+                <span class="text-[10px] uppercase tracking-widest font-bold opacity-30 italic">비공개</span>
+            </div>
+            <div class="flex flex-col items-center border-x border-primary/10 px-4">
+                <div class="w-12 h-6 bg-primary/10 rounded-md animate-pulse mb-2"></div>
+                <span class="text-[10px] uppercase tracking-widest font-bold opacity-30 italic">비공개</span>
+            </div>
+            <div class="flex flex-col items-center">
+                <div class="w-12 h-6 bg-primary/10 rounded-md animate-pulse mb-2"></div>
+                <span class="text-[10px] uppercase tracking-widest font-bold opacity-30 italic">비공개</span>
+            </div>
+        </div>
     </section>
+
+    <section id="private-lock-section" class="hidden mb-16">
+        <div class="flex flex-col items-center justify-center py-20 px-6 rounded-3xl bg-white/40 dark:bg-primary/5 border border-primary/10 shadow-sm">
+            <div class="size-24 rounded-full bg-primary/10 flex items-center justify-center mb-8">
+                <span class="material-symbols-outlined text-5xl text-primary">lock</span>
+            </div>
+            <h2 class="text-2xl font-bold mb-3">비공개 프로필입니다</h2>
+            <p class="text-[#5f867e] dark:text-primary/70 text-center max-w-md mb-10 leading-relaxed">
+                사용자가 프로필을 비공개로 설정했습니다.<br/>
+                공개 설정이 변경되면 활동 내역을 볼 수 있습니다.
+            </p>
+            <a class="px-8 py-3.5 bg-primary hover:bg-primary/90 text-white font-bold rounded-full transition-all shadow-lg shadow-primary/20 flex items-center gap-2 group" href="/">
+                <span class="material-symbols-outlined text-xl group-hover:-translate-x-1 transition-transform">arrow_back</span>
+                <span>홈으로 돌아가기</span>
+            </a>
+        </div>
+    </section>
+
+    <div id="public-content">
 
     <section id="ai-summary-section" class="hidden mb-12">
         <div class="bg-primary/10 dark:bg-primary/5 rounded-xl p-4 md:p-6 flex flex-col md:flex-row items-center gap-6 border border-primary/20">
@@ -151,6 +185,8 @@
         </div>
     </div>
 
+    </div>
+
     <footer class="mt-24 pt-8 border-t border-primary/10 flex flex-col md:flex-row items-center justify-between gap-4 opacity-40">
         <p class="text-[10px] font-bold uppercase tracking-[0.2em]">&copy; 2024 O(NlogN). ALL RIGHTS RESERVED.</p>
         <div class="flex gap-6">
@@ -193,40 +229,7 @@
             renderActivityMonth();
         }
 
-        const DUMMY_PROFILE = {
-            display_name: '알렉스 리베라',
-            profile_slug: PROFILE_SLUG || 'arivera_dev',
-            bio: '크리에이터와 디지털 가드너를 위한 미니멀한 도구를 만듭니다.\n복잡한 세상 속 단순함을 하나씩 큐레이션합니다.',
-            avatar_url: 'https://lh3.googleusercontent.com/aida-public/AB6AXuB735EWX_nztGNDdVckqgadscOxj7OAUGbGJjFh2Y47d8ltwNFD5clzpYqgoZ_G-zP9mia3V9ronS4UMK8_DUKGox12q99VUq_QJ8ur5Ay1Cm8wXg_HX_eenr1ryhNY8zvO8YMS8uBAMtav2SHrxUkPBclexGnHnrzAKyyV_ffr3vI9MUv6OajIV9E6DjPAo9BHyEXQrOAk1ExL27M7SdY12V675gVQ1xkX_5G86zQC75cRJ7WhniGnGFTDWU_zTbVAFm3p9OI5DTK8',
-            total_tasks: 1284,
-            completion_rate: 94.2,
-            streak_days: 18,
-            ai_summary: '최근 알렉스님의 제품 디자인 일관성이 매우 뛰어납니다. 몰입이 필요한 과업의 85%를 정오 이전에 완료하며 강력한 오전 추진력을 보여주고 있습니다.',
-            group_distribution: [
-                { name: '디자인', percentage: 45 },
-                { name: '개발', percentage: 30 },
-                { name: '개인', percentage: 25 }
-            ],
-            keywords: ['UI 디자인', 'React', '가드닝', '미니멀리즘', '타이포그래피']
-        };
-
-        const DUMMY_AI_SUMMARIES = {
-            weekly: '이번 주 알렉스님은 디자인 작업에 집중하며 12개의 할 일 중 11개를 완료했습니다. 특히 수요일 오전에 가장 높은 생산성을 보였습니다.',
-            monthly: '최근 알렉스님의 제품 디자인 일관성이 매우 뛰어납니다. 몰입이 필요한 과업의 85%를 정오 이전에 완료하며 강력한 오전 추진력을 보여주고 있습니다.',
-            '30days': '지난 30일간 알렉스님은 총 142개의 할 일을 처리했으며, 개발과 디자인 영역의 균형이 이전 대비 20% 개선되었습니다. 주말 작업량이 소폭 증가하는 추세입니다.'
-        };
         let currentAiPeriod = 'monthly';
-
-        function generateDummyHeatmap() {
-            const heatmap = {};
-            const daysInMonth = new Date(actYear, actMonth + 1, 0).getDate();
-            for (let d = 1; d <= daysInMonth; d++) {
-                const dateStr = formatDate(new Date(actYear, actMonth, d));
-                const r = Math.random();
-                if (r > 0.3) heatmap[dateStr] = Math.ceil(Math.random() * 8);
-            }
-            return heatmap;
-        }
 
         const EMOJI_OPTIONS = ['👍', '🔥', '👏', '❤️', '🎉', '🙏', '✨', '🧠', '💪', '🎯', '💡', '🚀'];
 
@@ -257,18 +260,6 @@
             return groupColorCache[groupId];
         }
 
-        function generateDummyTodos(dateStr) {
-            const items = [
-                { title: '랜딩 페이지 타이포그래피 시스템 고도화', tags: ['디자인'], tag_color: '#fb923c', status: 'done', link: 'figma.com/file/landing-sys...', reactions: [{ emoji: '✨', count: 14 }, { emoji: '🎨', count: 8 }] },
-                { title: '아침 명상 및 저널링 세션', tags: ['일상'], tag_color: '#34d399', status: 'done', link: 'notion.so/morning-ritual...', reactions: [{ emoji: '🌿', count: 21 }] },
-                { title: '1분기 목표 검토 및 4월 목표 설정', tags: ['계획'], tag_color: '#fbbf24', status: 'done', link: null, reactions: [{ emoji: '📈', count: 5 }, { emoji: '🚀', count: 12 }] },
-                { title: '컴포넌트 라이브러리 리팩토링', tags: ['개발'], tag_color: '#60a5fa', status: 'todo', link: 'github.com/org/ui-lib/pull/42', reactions: [{ emoji: '💻', count: 3 }] },
-                { title: '팀 주간 회의 준비', tags: ['계획'], tag_color: '#fbbf24', status: 'todo', link: null, reactions: [] }
-            ];
-            const count = Math.floor(Math.random() * 3) + 2;
-            return items.slice(0, count);
-        }
-
         function initAiPeriodToggle() {
             document.querySelectorAll('.ai-period-btn').forEach(btn => {
                 btn.addEventListener('click', () => switchAiPeriod(btn.dataset.period));
@@ -289,13 +280,9 @@
                 .then(resp => {
                     if (resp && resp.data && resp.data.summary) {
                         document.getElementById('ai-summary-text').textContent = resp.data.summary;
-                    } else {
-                        document.getElementById('ai-summary-text').textContent = DUMMY_AI_SUMMARIES[period] || '';
                     }
                 })
-                .catch(() => {
-                    document.getElementById('ai-summary-text').textContent = DUMMY_AI_SUMMARIES[period] || '';
-                });
+                .catch(() => {});
         }
 
         function applyProfile(p) {
@@ -304,9 +291,32 @@
             document.getElementById('profile-bio').textContent = p.bio || '';
             if (p.avatar_url) document.getElementById('profile-avatar').src = p.avatar_url;
 
+            const isPrivate = p.visibility === 'private';
+
+            if (isPrivate) {
+                document.getElementById('stats-public').classList.add('hidden');
+                document.getElementById('stats-private').classList.remove('hidden');
+                document.getElementById('stats-private').style.display = 'grid';
+                document.getElementById('public-content').classList.add('hidden');
+                document.getElementById('private-lock-section').classList.remove('hidden');
+                return;
+            }
+
+            document.getElementById('stats-public').classList.remove('hidden');
+            document.getElementById('stats-private').classList.add('hidden');
+            document.getElementById('public-content').classList.remove('hidden');
+            document.getElementById('private-lock-section').classList.add('hidden');
+
             if (p.total_tasks !== undefined) document.getElementById('stat-total').textContent = p.total_tasks.toLocaleString();
             if (p.completion_rate !== undefined) document.getElementById('stat-rate').textContent = Math.round(p.completion_rate) + '%';
             if (p.streak_days !== undefined) document.getElementById('stat-streak').textContent = p.streak_days;
+
+            if (p.stats_summary) {
+                const s = p.stats_summary;
+                document.getElementById('stat-total').textContent = (s.total_tasks || 0).toLocaleString();
+                const rate = s.total_tasks > 0 ? Math.round((s.done_tasks / s.total_tasks) * 100) : 0;
+                document.getElementById('stat-rate').textContent = rate + '%';
+            }
 
             if (p.ai_summary) {
                 document.getElementById('ai-summary-text').textContent = p.ai_summary;
@@ -323,11 +333,9 @@
                 .then(resp => {
                     if (resp && resp.data) {
                         applyProfile(resp.data);
-                    } else {
-                        applyProfile(DUMMY_PROFILE);
                     }
                 })
-                .catch(() => applyProfile(DUMMY_PROFILE));
+                .catch(() => {});
         }
 
         function renderGroupDist(groups) {
@@ -383,10 +391,10 @@
                         });
                         renderActivityGrid(heatmap);
                     } else {
-                        renderActivityGrid(generateDummyHeatmap());
+                        renderActivityGrid({});
                     }
                 })
-                .catch(() => renderActivityGrid(generateDummyHeatmap()));
+                .catch(() => renderActivityGrid({}));
         }
 
         function renderActivityGrid(heatmap) {
@@ -439,17 +447,17 @@
                 .then(resp => {
                     if (resp && resp.data && resp.data.length > 0) {
                         const tasks = resp.data.map(t => {
-                            const groupName = (t.tags && t.tags.length > 0) ? t.tags[0] : '기본';
-                            const color = t.group_id ? assignGroupColor(t.group_id) : getTagColor(groupName);
-                            if (t.group_id && groupName !== '기본') groupColorCache[groupName] = color;
+                            const groupName = t.group_name || ((t.tags && t.tags.length > 0) ? t.tags[0] : '기본');
+                            const color = t.group_color || (t.group_id ? assignGroupColor(t.group_id) : getTagColor(groupName));
+                            t._group_label = groupName;
                             return Object.assign(t, { tag_color: color });
                         });
                         fetchAllReactions(tasks).then(() => renderTodoList(tasks));
                     } else {
-                        renderTodoList(generateDummyTodos(dateStr));
+                        renderTodoList([]);
                     }
                 })
-                .catch(() => renderTodoList(generateDummyTodos(dateStr)));
+                .catch(() => renderTodoList([]));
         }
 
         function showInsights() {
@@ -561,7 +569,7 @@
             const grouped = {};
             tasks.forEach((t, idx) => {
                 t._idx = idx;
-                const tag = (t.tags && t.tags.length > 0) ? t.tags[0] : '기본';
+                const tag = t._group_label || ((t.tags && t.tags.length > 0) ? t.tags[0] : '기본');
                 if (!grouped[tag]) grouped[tag] = [];
                 grouped[tag].push(t);
             });

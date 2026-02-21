@@ -5,8 +5,10 @@ import com.onlogn.onlogn.common.dto.DataMetaEnvelope;
 import com.onlogn.onlogn.common.dto.ListMeta;
 import com.onlogn.onlogn.common.exception.ApiException;
 import com.onlogn.onlogn.common.exception.ProblemType;
+import com.onlogn.onlogn.entity.GroupEntity;
 import com.onlogn.onlogn.entity.TaskEntity;
 import com.onlogn.onlogn.entity.UserEntity;
+import com.onlogn.onlogn.repository.GroupRepository;
 import com.onlogn.onlogn.repository.TaskRepository;
 import com.onlogn.onlogn.repository.UserRepository;
 import com.onlogn.onlogn.service.BedrockTagExtractor;
@@ -41,15 +43,18 @@ public class ProfileController {
     private final TaskService taskService;
     private final UserRepository userRepository;
     private final TaskRepository taskRepository;
+    private final GroupRepository groupRepository;
     private final BedrockTagExtractor bedrockTagExtractor;
 
     public ProfileController(ProfileService profileService, TaskService taskService,
                              UserRepository userRepository, TaskRepository taskRepository,
+                             GroupRepository groupRepository,
                              BedrockTagExtractor bedrockTagExtractor) {
         this.profileService = profileService;
         this.taskService = taskService;
         this.userRepository = userRepository;
         this.taskRepository = taskRepository;
+        this.groupRepository = groupRepository;
         this.bedrockTagExtractor = bedrockTagExtractor;
     }
 
@@ -57,6 +62,8 @@ public class ProfileController {
             String id,
             @JsonProperty("owner_user_id") String ownerUserId,
             @JsonProperty("group_id") String groupId,
+            @JsonProperty("group_name") String groupName,
+            @JsonProperty("group_color") String groupColor,
             String title,
             String status,
             String visibility,
@@ -148,10 +155,22 @@ public class ProfileController {
     }
 
     private TaskResponse toTaskResponse(TaskEntity task) {
+        String groupName = null;
+        String groupColor = null;
+        if (task.getGroupId() != null) {
+            GroupEntity group = groupRepository.findById(task.getGroupId()).orElse(null);
+            if (group != null) {
+                groupName = group.getDescription();
+                groupColor = group.getColor();
+            }
+        }
+
         return new TaskResponse(
                 task.getId().toString(),
                 task.getOwnerUserId().toString(),
                 task.getGroupId() != null ? task.getGroupId().toString() : null,
+                groupName,
+                groupColor,
                 task.getTitle(),
                 task.getStatus(),
                 task.getVisibility(),
