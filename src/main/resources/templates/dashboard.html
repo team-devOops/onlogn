@@ -791,8 +791,8 @@
                     const heatmap = {};
                     let totalTasks = 0, doneTasks = 0;
                     days.forEach(d => {
-                        const count = d.total_count || d.totalCount || 0;
-                        const done = d.done_count || d.doneCount || 0;
+                        const count = d.planned_count || 0;
+                        const done = d.done_count || 0;
                         if (count > 0) {
                             heatmap[d.date] = Math.min(5, Math.ceil((count / 8) * 5));
                         }
