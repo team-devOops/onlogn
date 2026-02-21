@@ -522,6 +522,42 @@
         let currentYear, currentMonth, selectedDate;
         let pickerYear, pickerMonth, pickerSelectedDate;
         let taskStartTime = '', taskEndTime = '';
+        let currentUser = null;
+
+        function authHeaders(extra) {
+            const headers = Object.assign({ 'Content-Type': 'application/json' }, extra || {});
+            const token = localStorage.getItem('access_token');
+            if (token) headers['Authorization'] = 'Bearer ' + token;
+            return headers;
+        }
+
+        function fetchCurrentUser() {
+            fetch('/api/v1/users/me', { headers: authHeaders() })
+                .then(r => r.ok ? r.json() : null)
+                .then(resp => {
+                    if (!resp || !resp.data) return;
+                    currentUser = resp.data;
+                    applyCurrentUser(currentUser);
+                })
+                .catch(() => {});
+        }
+
+        function applyCurrentUser(u) {
+            const navAvatar = document.querySelector('#user-avatar img');
+            if (navAvatar && u.avatar_url) navAvatar.src = u.avatar_url;
+
+            const settingsAvatar = document.getElementById('settings-avatar');
+            if (settingsAvatar && u.avatar_url) settingsAvatar.src = u.avatar_url;
+
+            const settingsName = document.getElementById('settings-name');
+            if (settingsName) settingsName.textContent = u.display_name || '';
+
+            const settingsUsername = document.getElementById('settings-username');
+            if (settingsUsername) settingsUsername.textContent = u.profile_slug ? '@' + u.profile_slug : '';
+
+            const settingsProfileLink = document.getElementById('settings-profile-link');
+            if (settingsProfileLink && u.profile_slug) settingsProfileLink.href = '/@' + u.profile_slug;
+        }
 
         function init() {
             const now = new Date();
@@ -536,6 +572,7 @@
             initModal();
             initSettings();
 
+            fetchCurrentUser();
             render();
             fetchTasks(selectedDate);
         }
