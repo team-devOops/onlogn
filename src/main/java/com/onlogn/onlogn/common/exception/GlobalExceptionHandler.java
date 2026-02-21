@@ -12,6 +12,7 @@ import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.UUID;
@@ -64,6 +65,11 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(NoResourceFoundException.class)
     public ResponseEntity<ProblemResponse> handleNoResource(NoResourceFoundException ex, HttpServletRequest request) throws NoResourceFoundException {
+        throw ex;
+    }
+
+    @ExceptionHandler(ResponseStatusException.class)
+    public ResponseEntity<ProblemResponse> handleResponseStatus(ResponseStatusException ex, HttpServletRequest request) throws ResponseStatusException {
         throw ex;
     }
 
