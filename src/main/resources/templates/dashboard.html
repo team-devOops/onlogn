@@ -1566,6 +1566,13 @@
                         initialBio = bio.value;
                         initialPublic = publicToggle.checked;
                         saveBtn.disabled = true;
+                        if (currentUser) currentUser.bio = bio.value;
+                        return r.json();
+                    }
+                }).then(resp => {
+                    if (resp && resp.data) {
+                        currentUser = resp.data;
+                        applyCurrentUser(currentUser);
                     }
                 });
             });
@@ -1573,21 +1580,8 @@
             document.getElementById('btn-logout').addEventListener('click', openLogoutConfirm);
 
             document.getElementById('btn-add-group').addEventListener('click', () => {
-                const name = prompt('새 그룹 이름을 입력하세요:');
-                if (!name || !name.trim()) return;
-                const color = GROUP_COLOR_OPTIONS[currentGroups.length % GROUP_COLOR_OPTIONS.length];
-                const newGroup = { id: 'g' + Date.now(), name: name.trim(), color: color, visibility: 'public' };
-                fetch('/api/v1/groups', {
-                    method: 'POST',
-                    headers: authHeaders(),
-                    body: JSON.stringify({ description: name.trim(), color: color })
-                }).then(r => r.ok ? r.json() : null)
-                  .then(data => {
-                      if (data && data.data) { currentGroups.push(data.data); }
-                      else { currentGroups.push(newGroup); }
-                      renderGroups();
-                  })
-                  .catch(() => { currentGroups.push(newGroup); renderGroups(); });
+                isAddingGroup = true;
+                renderGroups();
             });
 
             window._settingsInitialState = { getBio: () => initialBio, setBio: v => initialBio = v, getPublic: () => initialPublic, setPublic: v => initialPublic = v };
@@ -1661,14 +1655,14 @@
         }
 
         function fetchProfile() {
-            if (currentUser) {
-                applyProfileFromUser(currentUser);
-                return;
-            }
             fetch('/api/v1/users/me', { headers: authHeaders() })
                 .then(r => r.ok ? r.json() : null)
                 .then(resp => {
-                    if (resp && resp.data) applyProfileFromUser(resp.data);
+                    if (resp && resp.data) {
+                        currentUser = resp.data;
+                        applyCurrentUser(currentUser);
+                        applyProfileFromUser(currentUser);
+                    }
                 })
                 .catch(() => {});
         }
@@ -1690,20 +1684,16 @@
         }
 
         const GROUP_COLOR_OPTIONS = ['#6ee7b7', '#a7d7cc', '#fca5a5', '#fcd34d', '#7dd3fc', '#a5b4fc', '#cbd5e1', '#f0abfc'];
-        const DUMMY_GROUPS = [
-            { id: 'g1', name: '개발', color: '#6ee7b7', visibility: 'public' },
-            { id: 'g2', name: '디자인', color: '#fb923c', visibility: 'public' },
-            { id: 'g3', name: '미팅', color: '#60a5fa', visibility: 'private' },
-            { id: 'g4', name: '개인', color: '#fbbf24', visibility: 'public' }
-        ];
+        const DEFAULT_GROUP = { id: '__default__', name: '기본', color: '#9ca3af', visibility: 'private', isDefault: true };
         let currentGroups = [];
         let pendingDeleteId = null;
+        let isAddingGroup = false;
 
         function fetchGroups() {
             fetch('/api/v1/groups?limit=100', { headers: authHeaders() })
                 .then(r => r.ok ? r.json() : null)
                 .then(resp => {
-                    if (resp && resp.data && resp.data.length > 0) {
+                    if (resp && resp.data) {
                         currentGroups = resp.data.map(g => ({
                             id: g.id,
                             name: g.description || g.id,
@@ -1711,21 +1701,26 @@
                             visibility: g.visibility || 'public'
                         }));
                     } else {
-                        currentGroups = DUMMY_GROUPS;
+                        currentGroups = [];
                     }
                     renderGroups();
                 })
-                .catch(() => { currentGroups = DUMMY_GROUPS; renderGroups(); });
+                .catch(() => { currentGroups = []; renderGroups(); });
         }
 
         function renderGroups() {
             const list = document.getElementById('group-list');
             list.innerHTML = '';
 
-            if (currentGroups.length === 0) {
-                list.innerHTML = '<div class="py-8 text-center text-sm opacity-40">등록된 그룹이 없습니다</div>';
-                return;
-            }
+            const defaultRow = document.createElement('div');
+            defaultRow.className = 'relative flex items-center gap-3 p-3 rounded-xl opacity-60';
+            defaultRow.innerHTML = `
+                <span class="material-symbols-outlined text-gray-200 select-none">drag_indicator</span>
+                <div class="w-3 h-3 rounded-full bg-gray-400"></div>
+                <span class="flex-1 text-sm font-medium text-gray-500">기본</span>
+                <div class="w-9"></div>
+                <div class="w-[28px] ml-2"></div>`;
+            list.appendChild(defaultRow);
 
             currentGroups.forEach((g, idx) => {
                 const isDeleting = pendingDeleteId === g.id;
@@ -1813,6 +1808,103 @@
 
                 list.appendChild(row);
             });
+
+            if (isAddingGroup) {
+                const randomColor = GROUP_COLOR_OPTIONS[Math.floor(Math.random() * GROUP_COLOR_OPTIONS.length)];
+                let selectedNewColor = randomColor;
+
+                const addRow = document.createElement('div');
+                addRow.className = 'relative flex items-center gap-3 p-3 bg-[#F5F5F0]/50 dark:bg-white/5 rounded-xl border border-primary/20 shadow-sm';
+
+                const drag = document.createElement('span');
+                drag.className = 'material-symbols-outlined text-gray-400 select-none';
+                drag.textContent = 'drag_indicator';
+                addRow.appendChild(drag);
+
+                const colorDot = document.createElement('div');
+                colorDot.className = 'w-3 h-3 rounded-full cursor-pointer hover:ring-2 hover:ring-offset-2 transition-all shrink-0';
+                colorDot.style.backgroundColor = selectedNewColor;
+                addRow.appendChild(colorDot);
+
+                const colorPicker = document.createElement('div');
+                colorPicker.className = 'color-picker-popup absolute top-10 left-12 z-10 bg-white dark:bg-[#25312f] shadow-xl border border-black/5 p-2 rounded-lg gap-1.5';
+                GROUP_COLOR_OPTIONS.forEach(c => {
+                    const swatch = document.createElement('div');
+                    swatch.className = 'size-5 rounded-full cursor-pointer hover:scale-110 transition-transform';
+                    if (c === selectedNewColor) swatch.classList.add('ring-2', 'ring-primary');
+                    swatch.style.backgroundColor = c;
+                    swatch.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        selectedNewColor = c;
+                        colorDot.style.backgroundColor = c;
+                        colorPicker.querySelectorAll('div').forEach(s => s.classList.remove('ring-2', 'ring-primary'));
+                        swatch.classList.add('ring-2', 'ring-primary');
+                        colorPicker.classList.remove('active');
+                    });
+                    colorPicker.appendChild(swatch);
+                });
+                addRow.appendChild(colorPicker);
+                colorDot.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    document.querySelectorAll('.color-picker-popup.active').forEach(p => p.classList.remove('active'));
+                    colorPicker.classList.toggle('active');
+                });
+
+                const inputWrap = document.createElement('div');
+                inputWrap.className = 'flex-1';
+                inputWrap.innerHTML = '<input class="new-group-input w-full bg-transparent border-none p-0 text-sm font-medium focus:ring-0 placeholder:text-gray-400" placeholder="그룹 이름을 입력하세요" type="text"/>';
+                addRow.appendChild(inputWrap);
+
+                const toggleWrap = document.createElement('div');
+                toggleWrap.className = 'relative inline-block w-9 align-middle select-none';
+                toggleWrap.innerHTML = `
+                    <input class="group-toggle-checkbox hidden" id="toggle-new-group" type="checkbox" checked/>
+                    <label class="group-toggle-label block w-9 h-5 rounded-full bg-gray-200 cursor-pointer transition-colors duration-200 relative" for="toggle-new-group">
+                        <span class="toggle-dot absolute left-0.5 top-0.5 bg-white w-4 h-4 rounded-full transition-transform duration-200 shadow-sm"></span>
+                    </label>`;
+                addRow.appendChild(toggleWrap);
+
+                const actions = document.createElement('div');
+                actions.className = 'flex items-center gap-1 ml-2';
+                actions.innerHTML = `
+                    <button class="confirm-new material-symbols-outlined text-[20px] text-primary hover:bg-primary/10 rounded-full p-0.5 transition-all">check</button>
+                    <button class="cancel-new material-symbols-outlined text-[20px] text-gray-400 hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-400/10 rounded-full p-0.5 transition-all">close</button>`;
+                addRow.appendChild(actions);
+
+                const input = addRow.querySelector('.new-group-input');
+                const toggleCheckbox = addRow.querySelector('#toggle-new-group');
+
+                const submitNewGroup = () => {
+                    const name = input.value.trim();
+                    if (!name) { input.focus(); return; }
+                    const isPublic = toggleCheckbox.checked;
+                    isAddingGroup = false;
+
+                    fetch('/api/v1/groups', {
+                        method: 'POST',
+                        headers: authHeaders(),
+                        body: JSON.stringify({ description: name, color: selectedNewColor, visibility: isPublic ? 'public' : 'private' })
+                    }).then(r => r.ok ? r.json() : null)
+                      .then(data => {
+                          if (data && data.data) {
+                              const g = data.data;
+                              currentGroups.push({ id: g.id, name: g.description || g.id, color: g.color || selectedNewColor, visibility: g.visibility || 'public' });
+                          }
+                          renderGroups();
+                      })
+                      .catch(() => renderGroups());
+                };
+
+                actions.querySelector('.confirm-new').addEventListener('click', submitNewGroup);
+                actions.querySelector('.cancel-new').addEventListener('click', () => { isAddingGroup = false; renderGroups(); });
+                input.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') submitNewGroup();
+                    if (e.key === 'Escape') { isAddingGroup = false; renderGroups(); }
+                });
+
+                list.appendChild(addRow);
+                setTimeout(() => input.focus(), 50);
+            }
 
             document.addEventListener('click', (e) => {
                 if (!e.target.closest('.color-picker-popup') && !e.target.closest('.w-3.h-3')) {
