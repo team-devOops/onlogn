@@ -78,19 +78,32 @@ public class ReactionService {
                     "/api/v1/tasks/" + taskId + "/reactions");
         }
 
-        ReactionEntity existing = reactionRepository.findByUserIdAndTaskIdAndEmoji(userId, taskId, emoji)
-                .orElse(null);
+        boolean requesterReacted;
 
-        if (existing != null) {
-            existing.setActive(!existing.isActive());
-            reactionRepository.save(existing);
+        if (userId != null) {
+            ReactionEntity existing = reactionRepository.findByUserIdAndTaskIdAndEmoji(userId, taskId, emoji)
+                    .orElse(null);
+
+            if (existing != null) {
+                existing.setActive(!existing.isActive());
+                reactionRepository.save(existing);
+                requesterReacted = existing.isActive();
+            } else {
+                ReactionEntity newReaction = new ReactionEntity();
+                newReaction.setUserId(userId);
+                newReaction.setTaskId(taskId);
+                newReaction.setEmoji(emoji);
+                newReaction.setActive(true);
+                reactionRepository.save(newReaction);
+                requesterReacted = true;
+            }
         } else {
-            existing = new ReactionEntity();
-            existing.setUserId(userId);
-            existing.setTaskId(taskId);
-            existing.setEmoji(emoji);
-            existing.setActive(true);
-            reactionRepository.save(existing);
+            ReactionEntity anonymous = new ReactionEntity();
+            anonymous.setTaskId(taskId);
+            anonymous.setEmoji(emoji);
+            anonymous.setActive(true);
+            reactionRepository.save(anonymous);
+            requesterReacted = true;
         }
 
         long count = reactionRepository.countByTaskIdAndEmojiAndActiveTrue(taskId, emoji);
@@ -98,9 +111,14 @@ public class ReactionService {
         return Map.of(
                 "task_id", taskId.toString(),
                 "emoji", emoji,
-                "requester_reacted", existing.isActive(),
+                "requester_reacted", requesterReacted,
                 "count", count
         );
+    }
+
+    @Transactional(readOnly = true)
+    public long countActiveReactions(UUID taskId, String emoji) {
+        return reactionRepository.countByTaskIdAndEmojiAndActiveTrue(taskId, emoji);
     }
 
     @Transactional

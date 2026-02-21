@@ -60,19 +60,19 @@ public class ReactionController {
     @PostMapping
     @Operation(
             operationId = "toggleTaskReaction",
-            summary = "공개 task reaction 토글",
-            description = "공개 task에서 사용자별, 이모지별 reaction을 토글한다.\n(user_id, task_id, emoji) 조합마다 논리적 reaction 행은 하나다.",
+            summary = "공개 task reaction 추가",
+            description = "공개 task에 emoji reaction을 추가한다.\n로그인 사용자는 (user_id, task_id, emoji) 조합으로 토글되고, 비로그인 사용자는 누를 때마다 +1 된다.",
+            security = {},
             tags = {"tasks", "reactions"}
     )
-    @ApiResponse(responseCode = "200", description = "reaction 토글 성공.")
+    @ApiResponse(responseCode = "200", description = "reaction 추가/토글 성공.")
     @ApiResponse(responseCode = "400", description = "형식이 잘못된 요청 payload 또는 미지원 body 형태.")
-    @ApiResponse(responseCode = "401", description = "RFC9457 problem details 응답.")
     @ApiResponse(responseCode = "404", description = "RFC9457 problem details 응답.")
     @ApiResponse(responseCode = "429", description = "스로틀링 정책에 의해 요청이 거부됨.")
     public ResponseEntity<DataMetaEnvelope<Map<String, Object>>> toggleReaction(
             @Parameter(description = "task ID") @PathVariable("task_id") UUID taskId,
             @Valid @RequestBody ReactionRequest request) {
-        UUID userId = (UUID) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        UUID userId = getOptionalUserId();
         Map<String, Object> result = reactionService.toggleReaction(taskId, userId, request.emoji());
         return ResponseEntity.ok(DataMetaEnvelope.of(result));
     }
@@ -81,7 +81,7 @@ public class ReactionController {
     @Operation(
             operationId = "removeTaskReaction",
             summary = "공개 task reaction 제거",
-            description = "공개 task에서 현재 사용자의 특정 emoji reaction을 제거한다.",
+            description = "공개 task에서 현재 사용자의 특정 emoji reaction을 제거한다. 로그인 사용자만 자신의 reaction을 제거할 수 있다.",
             tags = {"tasks", "reactions"}
     )
     @ApiResponse(responseCode = "200", description = "reaction 제거 성공.")
@@ -91,7 +91,17 @@ public class ReactionController {
     public ResponseEntity<DataMetaEnvelope<Map<String, Object>>> removeReaction(
             @Parameter(description = "task ID") @PathVariable("task_id") UUID taskId,
             @Parameter(description = "제거할 emoji") @RequestParam String emoji) {
-        UUID userId = (UUID) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        UUID userId = getOptionalUserId();
+        if (userId == null) {
+            // 비로그인 사용자는 제거 불가 — count만 반환
+            long count = reactionService.countActiveReactions(taskId, emoji);
+            return ResponseEntity.ok(DataMetaEnvelope.of(Map.of(
+                    "task_id", taskId.toString(),
+                    "emoji", emoji,
+                    "requester_reacted", false,
+                    "count", count
+            )));
+        }
         Map<String, Object> result = reactionService.removeReaction(taskId, userId, emoji);
         return ResponseEntity.ok(DataMetaEnvelope.of(result));
     }

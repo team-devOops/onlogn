@@ -33,7 +33,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/v1/auth/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/profiles/**").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/v1/tasks/*/reactions").permitAll()
+                        .requestMatchers("/api/v1/tasks/*/reactions").permitAll()
                         .requestMatchers("/api/**").authenticated()
                         .requestMatchers("/oauth2/authorization/**", "/login/oauth2/callback").permitAll()
                         .requestMatchers("/h2-console/**").permitAll()
