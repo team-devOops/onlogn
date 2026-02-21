@@ -152,6 +152,15 @@
 
 ---
 
+## ADR-017: start_time/end_time 전송 포맷을 Instant 호환 ISO-8601로 고정
+
+- **상태**: 승인
+- **결정**: 프론트엔드는 `start_time`, `end_time`을 `HH:mm:00Z` 형태로 보내지 않고, 날짜를 결합한 ISO-8601 UTC 문자열(`YYYY-MM-DDTHH:mm:ss.sssZ`)로 전송한다.
+- **근거**: 백엔드 DTO 타입이 `Instant`이므로 시간만 포함된 문자열은 역직렬화 단계에서 파싱 예외를 발생시킨다.
+- **결과**: 생성/수정 요청 모두에서 `DateTimeParseException` 없이 시간 정보가 저장된다.
+
+---
+
 ## ADR-016: 공개 프로필 task 응답에서 그룹 visibility 이중 경계 적용
 
 - **상태**: 승인

@@ -376,8 +376,8 @@ O(NlogN)은 단순한 할 일 관리(TODO)가 아니라, 실행 기록을 꾸준
 | 총 task 수 / 완료율 / 연속 일수 | `stats_summary` + 클라이언트 계산 |
 | AI 생산성 요약 | `GET /profiles/{slug}/ai-summary?period=weekly\|monthly\|30days` |
 | 월간 히트맵 | `GET /profiles/{slug}/tasks/calendar/monthly` |
-| 그룹 분포 (디자인 45% / 개발 30% 등) | 클라이언트 집계 |
-| 미루기 패턴 / 관심 키워드 | 클라이언트 집계 (v1 API 미포함) |
+| 그룹 분포 (디자인 45% / 개발 30% 등) | `GET /profiles/{slug}/tasks?limit=100` 기반 클라이언트 집계 |
+| 관심 키워드 | `POST /reviews/weekly` 응답의 review 텍스트에서 클라이언트 추출 (인증 시) |
 
 ---
 
@@ -457,3 +457,4 @@ v1에서 명시적으로 지원하지 않는 기능 목록이다.
 - 할 일 수정 모달의 캘린더 버튼 클릭 시 생성 모달과 동일한 날짜/시간 피커를 사용해야 한다.
 - 피커에서 선택한 날짜와 시간은 수정 모달에 즉시 반영되어야 한다.
 - 할 일 저장 시 수정된 `due_date`, `start_time`, `end_time` 값이 PATCH 요청 payload에 포함되어야 한다.
+- `start_time`, `end_time`은 시간 문자열(`HH:mm`)이 아닌 RFC3339/ISO-8601 `date-time` 문자열(예: `2026-02-21T05:00:00Z`)로 전송해야 한다.

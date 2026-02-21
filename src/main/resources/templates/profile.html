@@ -215,6 +215,11 @@
         let actYear, actMonth;
         let selectedDateStr = null;
         let aiRequestId = 0;
+        const MAX_INSIGHT_TASKS = 100;
+        const KEYWORD_STOPWORDS = new Set([
+            '이번', '최근', '다음', '동안', '기반', '위해', '통해', '정도', '관련', '대한', '그리고', '하지만', '또한', '에서', '으로',
+            'the', 'and', 'for', 'with', 'from', 'that', 'this', 'have', 'your', 'you', 'are', 'was', 'were', 'will', 'has'
+        ]);
 
         function init() {
             const now = new Date();
@@ -338,8 +343,8 @@
             }
             switchAiPeriod(currentAiPeriod);
 
-            renderGroupDist(p.group_distribution || []);
-            renderKeywords(p.keywords || []);
+            fetchGroupDistribution();
+            fetchKeywordsFromWeekly();
         }
 
         function fetchProfile() {
@@ -371,6 +376,36 @@
                 </div>`).join('');
         }
 
+        function fetchGroupDistribution() {
+            fetch(`${API_BASE}/api/v1/profiles/${PROFILE_SLUG}/tasks?limit=${MAX_INSIGHT_TASKS}`)
+                .then(r => r.ok ? r.json() : null)
+                .then(resp => {
+                    const tasks = resp && resp.data ? resp.data : [];
+                    if (tasks.length === 0) {
+                        renderGroupDist([]);
+                        return;
+                    }
+
+                    const grouped = {};
+                    tasks.forEach(t => {
+                        const name = t.group_name || ((t.tags && t.tags.length > 0) ? t.tags[0] : '기본');
+                        grouped[name] = (grouped[name] || 0) + 1;
+                    });
+
+                    const total = tasks.length;
+                    const dist = Object.entries(grouped)
+                        .map(([name, count]) => ({
+                            name,
+                            percentage: Math.max(1, Math.round((count * 100) / total))
+                        }))
+                        .sort((a, b) => b.percentage - a.percentage)
+                        .slice(0, 6);
+
+                    renderGroupDist(dist);
+                })
+                .catch(() => renderGroupDist([]));
+        }
+
         function renderKeywords(keywords) {
             const list = document.getElementById('keywords-list');
             if (keywords.length === 0) {
@@ -380,6 +415,47 @@
             list.innerHTML = keywords.map(k =>
                 `<span class="px-3 py-1 bg-primary/10 rounded-full text-[11px] font-bold text-primary">${escapeHtml(k)}</span>`
             ).join('');
+        }
+
+        function fetchKeywordsFromWeekly() {
+            const headers = { 'Content-Type': 'application/json' };
+            const token = getAuthToken();
+            if (token) headers['Authorization'] = 'Bearer ' + token;
+
+            fetch(`${API_BASE}/api/v1/reviews/weekly`, {
+                method: 'POST',
+                headers: headers
+            })
+                .then(r => r.ok ? r.json() : null)
+                .then(resp => {
+                    const reviewText = resp && resp.data ? (resp.data.review || '') : '';
+                    const keywords = extractKeywordsFromText(reviewText);
+                    renderKeywords(keywords);
+                })
+                .catch(() => renderKeywords([]));
+        }
+
+        function extractKeywordsFromText(text) {
+            if (!text) return [];
+
+            const counts = {};
+            const tokens = text
+                .replace(/[#*`>\-]/g, ' ')
+                .match(/[A-Za-z가-힣][A-Za-z가-힣0-9_-]{1,19}/g);
+
+            if (!tokens) return [];
+
+            tokens.forEach(token => {
+                const word = token.toLowerCase();
+                if (word.length < 2) return;
+                if (KEYWORD_STOPWORDS.has(word)) return;
+                counts[word] = (counts[word] || 0) + 1;
+            });
+
+            return Object.entries(counts)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 8)
+                .map(([word]) => word);
         }
 
         function changeActivityMonth(delta) {
@@ -518,21 +594,7 @@
         function toggleReaction(taskIdx, emoji) {
             const task = currentTasks[taskIdx];
             if (!task) return;
-
-            if (!task.id) {
-                // 더미 task — 로컬 토글만
-                if (!task.reactions) task.reactions = [];
-                const existing = task.reactions.find(r => r.emoji === emoji);
-                if (existing) {
-                    existing.reacted = !existing.reacted;
-                    existing.count = existing.reacted ? existing.count + 1 : Math.max(0, existing.count - 1);
-                    if (existing.count === 0) task.reactions = task.reactions.filter(r => r.emoji !== emoji);
-                } else {
-                    task.reactions.push({ emoji, count: 1, reacted: true });
-                }
-                renderTodoList(currentTasks);
-                return;
-            }
+            if (!task.id) return;
 
             if (!task.reactions) task.reactions = [];
             const existing = task.reactions.find(r => r.emoji === emoji);
