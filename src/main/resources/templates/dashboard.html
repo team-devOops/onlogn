@@ -17,6 +17,7 @@
                         "sage-green": "#a7d7cc",
                         "background-light": "#f6f7f7",
                         "background-dark": "#151d1c",
+                        "error": "#ef4444",
                     },
                     fontFamily: {
                         "display": ["IBM Plex Sans", "sans-serif"]
@@ -125,6 +126,9 @@
         }
         .date-num-picker {
             @apply text-[10px] font-medium opacity-40;
+        }
+        .input-error-ring {
+            box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.1);
         }
         .hide-scrollbar::-webkit-scrollbar {
             display: none;
@@ -260,11 +264,18 @@
             </button>
 
             <div class="flex items-start gap-4 mt-2">
-                <button class="custom-checkbox shrink-0 mt-1.5 text-transparent hover:text-primary/20">
+                <button id="task-checkbox" class="custom-checkbox shrink-0 mt-1.5 text-transparent hover:text-primary/20">
                     <span class="material-symbols-outlined text-lg">check</span>
                 </button>
-                <div class="flex-1">
-                    <input id="task-title-input" autofocus class="w-full text-2xl font-bold bg-transparent border-none placeholder-gray-300 focus:ring-0 p-0 text-gray-800 dark:text-white" placeholder="무엇을 할 건가요?" type="text"/>
+                <div class="flex-1 flex flex-col gap-2">
+                    <div class="relative">
+                        <input id="task-title-input" autofocus class="w-full text-2xl font-bold bg-transparent border-none placeholder-gray-300 focus:ring-0 p-0 text-gray-800 dark:text-white" placeholder="무엇을 할 건가요?" type="text"/>
+                        <div id="title-error-line" class="absolute -bottom-1 left-0 w-full h-[1.5px] bg-error/40 hidden"></div>
+                    </div>
+                    <p id="title-error-msg" class="text-[13px] font-medium text-error flex items-center gap-1 hidden">
+                        <span class="material-symbols-outlined text-sm">error</span>
+                        할 일 제목을 입력해주세요
+                    </p>
                 </div>
             </div>
 
@@ -765,6 +776,7 @@
             taskEndTime = '';
             pickerSelectedDate = new Date(selectedDate);
             dateText.textContent = formatModalDate(selectedDate);
+            clearTitleError();
 
             modal.classList.remove('hidden');
             document.body.style.overflow = 'hidden';
@@ -783,10 +795,25 @@
             return sel ? sel.dataset.category : 'default';
         }
 
+        function showTitleError() {
+            document.getElementById('title-error-line').classList.remove('hidden');
+            document.getElementById('title-error-msg').classList.remove('hidden');
+            document.getElementById('task-checkbox').classList.add('border-error/50');
+            document.getElementById('task-checkbox').classList.remove('hover:text-primary/20');
+            document.getElementById('task-title-input').focus();
+        }
+
+        function clearTitleError() {
+            document.getElementById('title-error-line').classList.add('hidden');
+            document.getElementById('title-error-msg').classList.add('hidden');
+            document.getElementById('task-checkbox').classList.remove('border-error/50');
+            document.getElementById('task-checkbox').classList.add('hover:text-primary/20');
+        }
+
         function saveTask() {
             const title = document.getElementById('task-title-input').value.trim();
             if (!title) {
-                document.getElementById('task-title-input').focus();
+                showTitleError();
                 return;
             }
             const link = document.getElementById('task-link-input').value.trim();
@@ -875,6 +902,10 @@
             document.getElementById('task-title-input').addEventListener('keydown', (e) => {
                 if (e.key === 'Enter') saveTask();
                 if (e.key === 'Escape') closeAddTask();
+            });
+
+            document.getElementById('task-title-input').addEventListener('input', () => {
+                if (document.getElementById('task-title-input').value.trim()) clearTitleError();
             });
 
             document.getElementById('btn-add-tag').addEventListener('click', () => {
