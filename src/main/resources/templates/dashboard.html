@@ -84,11 +84,11 @@
             -ms-overflow-style: none;
             scrollbar-width: none;
         }
-        .chip {
-            @apply flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all cursor-pointer border border-transparent hover:bg-gray-50 dark:hover:bg-white/5 text-gray-500 dark:text-gray-400;
+        .tag-item {
+            @apply flex items-center gap-2 px-2 py-1 rounded-md text-sm font-medium transition-all cursor-pointer text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300;
         }
-        .chip.selected {
-            @apply bg-gray-100 text-gray-900 dark:bg-white/10 dark:text-white font-semibold;
+        .tag-item.selected {
+            @apply text-gray-900 dark:text-white font-semibold;
         }
         .color-dot {
             @apply w-2 h-2 rounded-full;
@@ -268,22 +268,10 @@
                 </div>
             </div>
 
-            <div id="category-chips" class="flex flex-wrap gap-1 pl-10">
-                <button class="chip selected" data-category="dev">
-                    <span class="color-dot bg-emerald-400 shadow-sm shadow-emerald-400/50"></span>
-                    개발
-                </button>
-                <button class="chip" data-category="design">
-                    <span class="color-dot bg-orange-400"></span>
-                    디자인
-                </button>
-                <button class="chip" data-category="meeting">
-                    <span class="color-dot bg-blue-400"></span>
-                    미팅
-                </button>
-                <button class="chip" data-category="planning">
-                    <span class="color-dot bg-purple-400"></span>
-                    기획
+            <div id="category-chips" class="flex flex-wrap items-center gap-2 pl-10">
+                <button id="btn-add-tag" class="tag-item text-gray-400 hover:text-primary">
+                    <span class="material-symbols-outlined text-[18px]">add</span>
+                    추가
                 </button>
             </div>
 
@@ -300,9 +288,9 @@
                 <div class="flex items-center justify-between w-full">
                     <div class="flex items-center gap-3">
                         <div class="flex items-center justify-center w-8 h-8 rounded-full bg-gray-50 text-gray-400 dark:bg-white/5">
-                            <span class="material-symbols-outlined text-lg">lock</span>
+                            <span class="material-symbols-outlined text-lg">public</span>
                         </div>
-                        <span class="text-sm text-gray-600 dark:text-gray-300">비공개</span>
+                        <span class="text-sm text-gray-600 dark:text-gray-300">공개 설정</span>
                     </div>
                     <label class="relative inline-flex items-center cursor-pointer">
                         <input id="task-private-toggle" checked type="checkbox" class="sr-only peer"/>
@@ -778,13 +766,11 @@
             pickerSelectedDate = new Date(selectedDate);
             dateText.textContent = formatModalDate(selectedDate);
 
-            document.querySelectorAll('#category-chips .chip').forEach((chip, i) => {
-                chip.classList.toggle('selected', i === 0);
-            });
-
             modal.classList.remove('hidden');
             document.body.style.overflow = 'hidden';
             setTimeout(() => titleInput.focus(), 100);
+
+            fetchTags();
         }
 
         function closeAddTask() {
@@ -793,8 +779,8 @@
         }
 
         function getSelectedCategory() {
-            const sel = document.querySelector('#category-chips .chip.selected');
-            return sel ? sel.dataset.category : 'dev';
+            const sel = document.querySelector('#category-chips .tag-item.selected');
+            return sel ? sel.dataset.category : 'default';
         }
 
         function saveTask() {
@@ -804,7 +790,7 @@
                 return;
             }
             const link = document.getElementById('task-link-input').value.trim();
-            const isPrivate = document.getElementById('task-private-toggle').checked;
+            const isPublic = document.getElementById('task-private-toggle').checked;
             const category = getSelectedCategory();
             const taskDate = pickerSelectedDate || selectedDate;
 
@@ -813,7 +799,7 @@
                 date: formatDate(taskDate),
                 category: category,
                 link: link || null,
-                isPrivate: isPrivate
+                isPublic: isPublic
             };
             if (taskStartTime) payload.startTime = taskStartTime;
             if (taskEndTime) payload.endTime = taskEndTime;
@@ -837,6 +823,50 @@
             return `${d.getMonth() + 1}월 ${d.getDate()}일`;
         }
 
+        const DEFAULT_TAG = { id: 'default', name: '기본', color: '#9ca3af' };
+        const FALLBACK_COLORS = ['#82ccbd', '#fb923c', '#60a5fa', '#a78bfa', '#f472b6', '#34d399', '#fbbf24'];
+
+        function fetchTags() {
+            fetch(`${API_BASE}/api/tags`)
+                .then(r => r.ok ? r.json() : [])
+                .then(tags => renderTags(tags))
+                .catch(() => renderTags([]));
+        }
+
+        function renderTags(tags) {
+            const container = document.getElementById('category-chips');
+            const addBtn = document.getElementById('btn-add-tag');
+
+            container.querySelectorAll('.tag-item[data-category]').forEach(el => el.remove());
+
+            const allTags = [DEFAULT_TAG, ...tags.map((t, i) => ({
+                id: t.id || t.name,
+                name: t.name,
+                color: t.color || FALLBACK_COLORS[i % FALLBACK_COLORS.length]
+            }))];
+
+            allTags.forEach((tag, i) => {
+                const btn = document.createElement('button');
+                btn.className = 'tag-item' + (i === 0 ? ' selected' : '');
+                btn.dataset.category = tag.id;
+
+                const dot = document.createElement('span');
+                dot.className = 'color-dot';
+                dot.style.backgroundColor = tag.color;
+                if (i === 0) dot.classList.add('shadow-sm');
+
+                btn.appendChild(dot);
+                btn.appendChild(document.createTextNode(` ${tag.name}`));
+
+                btn.addEventListener('click', () => {
+                    container.querySelectorAll('.tag-item[data-category]').forEach(c => c.classList.remove('selected'));
+                    btn.classList.add('selected');
+                });
+
+                container.insertBefore(btn, addBtn);
+            });
+        }
+
         function initModal() {
             document.getElementById('modal-close').addEventListener('click', closeAddTask);
             document.getElementById('modal-backdrop').addEventListener('click', closeAddTask);
@@ -847,11 +877,14 @@
                 if (e.key === 'Escape') closeAddTask();
             });
 
-            document.querySelectorAll('#category-chips .chip').forEach(chip => {
-                chip.addEventListener('click', () => {
-                    document.querySelectorAll('#category-chips .chip').forEach(c => c.classList.remove('selected'));
-                    chip.classList.add('selected');
-                });
+            document.getElementById('btn-add-tag').addEventListener('click', () => {
+                const name = prompt('새 태그 이름을 입력하세요:');
+                if (!name || !name.trim()) return;
+                fetch(`${API_BASE}/api/tags`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: name.trim() })
+                }).then(r => { if (r.ok) fetchTags(); });
             });
 
             document.getElementById('modal-date-display').addEventListener('click', openDateTimePicker);
