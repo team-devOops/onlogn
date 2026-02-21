@@ -34,6 +34,7 @@ public class UserController {
             String email,
             @JsonProperty("display_name") String displayName,
             @JsonProperty("avatar_url") String avatarUrl,
+            String bio,
             String timezone,
             @JsonProperty("created_at") String createdAt,
             @JsonProperty("updated_at") String updatedAt
@@ -53,18 +54,7 @@ public class UserController {
         UUID userId = (UUID) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         UserEntity user = userService.getCurrentUser(userId);
 
-        UserResponse response = new UserResponse(
-                user.getId().toString(),
-                user.getProfileSlug(),
-                user.getEmail(),
-                user.getDisplayName(),
-                user.getAvatarUrl(),
-                user.getTimezone(),
-                user.getCreatedAt().toString(),
-                user.getUpdatedAt().toString()
-        );
-
-        return ResponseEntity.ok(DataMetaEnvelope.of(response));
+        return ResponseEntity.ok(DataMetaEnvelope.of(toUserResponse(user)));
     }
 
     public record UpdateUserRequest(
@@ -85,18 +75,20 @@ public class UserController {
     public ResponseEntity<DataMetaEnvelope<UserResponse>> updateMe(@RequestBody UpdateUserRequest request) {
         UUID userId = (UUID) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         UserEntity user = userService.updateCurrentUser(userId, request.bio(), request.displayName(), request.timezone());
+        return ResponseEntity.ok(DataMetaEnvelope.of(toUserResponse(user)));
+    }
 
-        UserResponse response = new UserResponse(
+    private UserResponse toUserResponse(UserEntity user) {
+        return new UserResponse(
                 user.getId().toString(),
                 user.getProfileSlug(),
                 user.getEmail(),
                 user.getDisplayName(),
                 user.getAvatarUrl(),
+                user.getBio(),
                 user.getTimezone(),
                 user.getCreatedAt().toString(),
                 user.getUpdatedAt().toString()
         );
-
-        return ResponseEntity.ok(DataMetaEnvelope.of(response));
     }
 }
