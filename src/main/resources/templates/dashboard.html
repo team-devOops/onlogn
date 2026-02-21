@@ -557,6 +557,8 @@
                     <input id="edit-title-input" class="flex-1 w-full text-2xl md:text-3xl font-bold border-none p-0 focus:ring-0 bg-transparent text-[#111816] dark:text-white placeholder:text-gray-300" placeholder="무엇을 할 건가요?" type="text"/>
                 </div>
 
+                <div id="edit-tags-container" class="flex flex-wrap items-center gap-2 pl-10"></div>
+
                 <div class="flex items-center gap-2 pl-10">
                     <button id="edit-date-btn" class="flex items-center gap-2 px-3 py-1.5 bg-gray-50/80 dark:bg-white/5 rounded-lg text-sm font-medium hover:bg-gray-100 transition-all text-gray-600 dark:text-gray-300 border border-transparent hover:border-gray-200">
                         <span class="material-symbols-outlined text-[18px] text-gray-400">calendar_today</span>
@@ -566,8 +568,6 @@
                         <span id="edit-time-text" class="hidden"></span>
                     </button>
                 </div>
-
-                <div id="edit-tags-container" class="flex items-center gap-2 overflow-x-auto hide-scrollbar pb-1 pl-10"></div>
 
                 <div class="flex items-center justify-between py-1 pl-10 pr-1">
                     <div class="flex items-center gap-2 text-gray-500">
@@ -604,17 +604,13 @@
     (function () {
         const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'];
         const HEAT_CLASSES = ['heat-0', 'heat-1', 'heat-2', 'heat-3', 'heat-4', 'heat-5'];
-        const CATEGORY_COLORS = {
-            morning:   { dot: 'bg-orange-400', label: 'text-orange-400', labelBg: 'text-orange-400/40 bg-orange-400/5' },
-            work:      { dot: 'bg-blue-400',   label: 'text-blue-400',   labelBg: 'text-blue-400/40 bg-blue-400/5' },
-            personal:  { dot: 'bg-purple-400', label: 'text-purple-400', labelBg: 'text-purple-400/40 bg-purple-400/5' },
-            'default': { dot: 'bg-primary',    label: 'text-primary',    labelBg: 'text-primary/40 bg-primary/5' }
-        };
+        const DEFAULT_GROUP_COLOR = '#9ca3af';
 
         let currentYear, currentMonth, selectedDate;
         let pickerYear, pickerMonth, pickerSelectedDate;
         let taskStartTime = '', taskEndTime = '';
         let currentUser = null;
+        let groupMap = {};
 
         function authHeaders(extra) {
             const headers = Object.assign({ 'Content-Type': 'application/json' }, extra || {});
@@ -790,37 +786,53 @@
             }
         }
 
-        function fetchTasks(date) {
-            const dateStr = formatDate(date);
-            fetch(`/api/v1/tasks?due_date_from=${dateStr}&due_date_to=${dateStr}&limit=100`, { headers: authHeaders() })
+        function loadGroupMap() {
+            return fetch('/api/v1/groups?limit=100', { headers: authHeaders() })
                 .then(r => r.ok ? r.json() : null)
                 .then(resp => {
-                    const tasks = (resp && resp.data) ? resp.data.map(mapTaskFromApi) : [];
-                    renderTasks(tasks);
-                    tasks.forEach((t, idx) => {
-                        if (!t.id) return;
-                        fetch(`/api/v1/tasks/${t.id}/reactions`)
-                            .then(r => r.ok ? r.json() : null)
-                            .then(resp => {
-                                if (!resp || !resp.data || resp.data.length === 0) return;
-                                const chips = document.querySelectorAll(`[data-task-id="${t.id}"]`);
-                                if (chips.length === 0) return;
-                                const row = chips[0].closest('.task-row');
-                                if (!row) return;
-                                let reactionBar = row.querySelector('.reaction-bar');
-                                if (!reactionBar) {
-                                    reactionBar = document.createElement('div');
-                                    reactionBar.className = 'flex items-center gap-1.5 mt-2 ml-1 reaction-bar';
-                                    row.querySelector('.flex-1').appendChild(reactionBar);
-                                }
-                                reactionBar.innerHTML = resp.data.map(r =>
-                                    `<div class="reaction-chip"><span class="text-[10px] md:text-[11px]">${r.emoji}</span><span class="text-[8px] md:text-[9px] font-bold opacity-60">${r.count}</span></div>`
-                                ).join('');
-                            })
-                            .catch(() => {});
-                    });
+                    groupMap = {};
+                    if (resp && resp.data) {
+                        resp.data.forEach(g => {
+                            groupMap[g.id] = { name: g.description || g.id, color: g.color || '#82ccbd' };
+                        });
+                    }
                 })
-                .catch(() => renderTasks([]));
+                .catch(() => { groupMap = {}; });
+        }
+
+        function fetchTasks(date) {
+            const dateStr = formatDate(date);
+            loadGroupMap().then(() => {
+                fetch(`/api/v1/tasks?due_date_from=${dateStr}&due_date_to=${dateStr}&limit=100`, { headers: authHeaders() })
+                    .then(r => r.ok ? r.json() : null)
+                    .then(resp => {
+                        const tasks = (resp && resp.data) ? resp.data.map(mapTaskFromApi) : [];
+                        renderTasks(tasks);
+                        tasks.forEach((t, idx) => {
+                            if (!t.id) return;
+                            fetch(`/api/v1/tasks/${t.id}/reactions`)
+                                .then(r => r.ok ? r.json() : null)
+                                .then(resp => {
+                                    if (!resp || !resp.data || resp.data.length === 0) return;
+                                    const chips = document.querySelectorAll(`[data-task-id="${t.id}"]`);
+                                    if (chips.length === 0) return;
+                                    const row = chips[0].closest('.task-row');
+                                    if (!row) return;
+                                    let reactionBar = row.querySelector('.reaction-bar');
+                                    if (!reactionBar) {
+                                        reactionBar = document.createElement('div');
+                                        reactionBar.className = 'flex items-center gap-1.5 mt-2 ml-1 reaction-bar';
+                                        row.querySelector('.flex-1').appendChild(reactionBar);
+                                    }
+                                    reactionBar.innerHTML = resp.data.map(r =>
+                                        `<div class="reaction-chip"><span class="text-[10px] md:text-[11px]">${r.emoji}</span><span class="text-[8px] md:text-[9px] font-bold opacity-60">${r.count}</span></div>`
+                                    ).join('');
+                                })
+                                .catch(() => {});
+                        });
+                    })
+                    .catch(() => renderTasks([]));
+            });
         }
 
         function mapTaskFromApi(t) {
@@ -864,15 +876,19 @@
                     if (!resp || !resp.data) return;
                     const days = resp.data;
                     const heatmap = {};
-                    let totalTasks = 0, doneTasks = 0;
+                    let totalTasks = 0, doneTasks = 0, maxDone = 0;
                     days.forEach(d => {
                         const count = d.planned_count || 0;
                         const done = d.done_count || 0;
-                        if (count > 0) {
-                            heatmap[d.date] = Math.min(5, Math.ceil((count / 8) * 5));
-                        }
                         totalTasks += count;
                         doneTasks += done;
+                        if (done > 0) maxDone = Math.max(maxDone, done);
+                    });
+                    days.forEach(d => {
+                        const done = d.done_count || 0;
+                        if (done > 0 && maxDone > 0) {
+                            heatmap[d.date] = Math.max(1, Math.min(5, Math.ceil((done / maxDone) * 5)));
+                        }
                     });
                     const pct = totalTasks > 0 ? Math.round((doneTasks / totalTasks) * 100) : 0;
                     document.getElementById('monthly-completion-percent').textContent = pct + '%';
@@ -891,6 +907,14 @@
                 HEAT_CLASSES.forEach(c => cell.classList.remove(c));
                 cell.classList.add(HEAT_CLASSES[level]);
             });
+        }
+
+        function getGroupColors(groupId) {
+            if (groupId && groupMap[groupId]) {
+                const g = groupMap[groupId];
+                return { name: g.name, color: g.color };
+            }
+            return { name: '기본', color: '#9ca3af' };
         }
 
         function renderTasks(tasks) {
@@ -920,19 +944,34 @@
             }
 
             Object.entries(grouped).forEach(([cat, items]) => {
-                const colors = CATEGORY_COLORS[cat] || CATEGORY_COLORS['default'];
+                const group = getGroupColors(cat);
 
                 const header = document.createElement('div');
                 header.className = 'category-header';
-                header.innerHTML = `
-                    <div class="flex items-center gap-2">
-                        <span class="size-1.5 ${colors.dot} rounded-full"></span>
-                        <span class="text-[9px] md:text-[10px] font-bold ${colors.label} uppercase tracking-widest">${escapeHtml(cat)}</span>
-                    </div>
-                    <span class="text-[9px] md:text-[10px] opacity-40 font-bold">${items.length} TASKS</span>`;
+
+                const dotSpan = document.createElement('span');
+                dotSpan.className = 'size-2 rounded-full shrink-0';
+                dotSpan.style.backgroundColor = group.color;
+
+                const labelSpan = document.createElement('span');
+                labelSpan.className = 'text-[9px] md:text-[10px] font-bold uppercase tracking-widest';
+                labelSpan.style.color = group.color;
+                labelSpan.textContent = group.name;
+
+                const left = document.createElement('div');
+                left.className = 'flex items-center gap-2';
+                left.appendChild(dotSpan);
+                left.appendChild(labelSpan);
+
+                const countSpan = document.createElement('span');
+                countSpan.className = 'text-[9px] md:text-[10px] opacity-40 font-bold';
+                countSpan.textContent = items.length + ' TASKS';
+
+                header.appendChild(left);
+                header.appendChild(countSpan);
                 list.appendChild(header);
 
-                items.forEach(task => list.appendChild(createTaskRow(task, colors)));
+                items.forEach(task => list.appendChild(createTaskRow(task, group)));
             });
         }
 
@@ -987,7 +1026,7 @@
             }
 
             const tagLabel = task.tag
-                ? `<span class="text-[8px] md:text-[9px] font-bold ${colors.labelBg} uppercase px-1.5 md:px-2 py-0.5 rounded shrink-0">${escapeHtml(task.tag)}</span>`
+                ? `<span class="text-[8px] md:text-[9px] font-bold uppercase px-1.5 md:px-2 py-0.5 rounded shrink-0" style="color: ${colors.color}; background-color: ${colors.color}15;">${escapeHtml(task.tag)}</span>`
                 : '';
 
             row.innerHTML = `
@@ -1148,8 +1187,8 @@
             const title = document.getElementById('edit-title-input').value.trim();
             if (!title) return;
             const link = document.getElementById('edit-link-input').value.trim();
-            const selectedTag = document.querySelector('#edit-tags-container .edit-tag-btn.active');
-            const tags = selectedTag ? [selectedTag.dataset.tag] : [];
+            const selectedTag = document.querySelector('#edit-tags-container .tag-item.selected');
+            const tags = (selectedTag && selectedTag.dataset.tag !== 'default') ? [selectedTag.dataset.tag] : [];
 
             const payload = {
                 title: title,
@@ -1177,26 +1216,32 @@
             fetch('/api/v1/groups?limit=100', { headers: authHeaders() })
                 .then(r => r.ok ? r.json() : null)
                 .then(resp => {
-                    const groups = (resp && resp.data) ? resp.data : [];
-                    const allTags = [{ id: 'default', name: '기본' }, ...groups.map(g => ({ id: g.description || g.id, name: g.description || g.id }))];
+                    const groups = (resp && resp.data) ? resp.data.map((g, i) => ({
+                        id: g.id,
+                        name: g.description || g.id,
+                        color: g.color || FALLBACK_COLORS[i % FALLBACK_COLORS.length]
+                    })) : [];
+                    const allTags = [DEFAULT_TAG, ...groups];
+
                     allTags.forEach(tag => {
+                        const isActive = currentTags.includes(tag.id) || currentTags.includes(tag.name) || (tag.id === 'default' && currentTags.length === 0);
+
                         const btn = document.createElement('button');
-                        const isActive = currentTags.includes(tag.id) || (tag.id === 'default' && currentTags.length === 0);
-                        btn.className = 'edit-tag-btn px-3 py-1 rounded-md text-[11px] font-bold whitespace-nowrap transition-all flex items-center gap-1.5 '
-                            + (isActive ? 'bg-primary/10 text-primary active' : 'bg-gray-50 dark:bg-white/5 text-gray-400 hover:bg-gray-100 border border-transparent');
+                        btn.className = 'tag-item' + (isActive ? ' selected' : '');
                         btn.dataset.tag = tag.id;
-                        if (isActive) btn.innerHTML = `<span class="size-1.5 rounded-full bg-primary"></span>${escapeHtml(tag.name).toUpperCase()}`;
-                        else btn.textContent = tag.name.toUpperCase();
+
+                        const dot = document.createElement('span');
+                        dot.className = 'color-dot';
+                        dot.style.backgroundColor = tag.color;
+
+                        btn.appendChild(dot);
+                        btn.appendChild(document.createTextNode(` ${tag.name}`));
+
                         btn.addEventListener('click', () => {
-                            container.querySelectorAll('.edit-tag-btn').forEach(b => {
-                                b.classList.remove('active', 'bg-primary/10', 'text-primary');
-                                b.classList.add('bg-gray-50', 'text-gray-400');
-                                b.innerHTML = b.dataset.tag === 'default' ? '기본' : escapeHtml(b.textContent);
-                            });
-                            btn.classList.add('active', 'bg-primary/10', 'text-primary');
-                            btn.classList.remove('bg-gray-50', 'text-gray-400');
-                            btn.innerHTML = `<span class="size-1.5 rounded-full bg-primary"></span>${escapeHtml(tag.name).toUpperCase()}`;
+                            container.querySelectorAll('.tag-item').forEach(b => b.classList.remove('selected'));
+                            btn.classList.add('selected');
                         });
+
                         container.appendChild(btn);
                     });
                 })
