@@ -507,7 +507,7 @@
                         const heatmap = {};
                         resp.data.forEach(t => {
                             const d = t.due_date;
-                            if (d) heatmap[d] = (heatmap[d] || 0) + 1;
+                            if (d && t.status === 'done') heatmap[d] = (heatmap[d] || 0) + 1;
                         });
                         renderActivityGrid(heatmap);
                     } else {
