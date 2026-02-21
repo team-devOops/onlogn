@@ -522,6 +522,42 @@
         let currentYear, currentMonth, selectedDate;
         let pickerYear, pickerMonth, pickerSelectedDate;
         let taskStartTime = '', taskEndTime = '';
+        let currentUser = null;
+
+        function authHeaders(extra) {
+            const headers = Object.assign({ 'Content-Type': 'application/json' }, extra || {});
+            const token = localStorage.getItem('access_token');
+            if (token) headers['Authorization'] = 'Bearer ' + token;
+            return headers;
+        }
+
+        function fetchCurrentUser() {
+            fetch('/api/v1/users/me', { headers: authHeaders() })
+                .then(r => r.ok ? r.json() : null)
+                .then(resp => {
+                    if (!resp || !resp.data) return;
+                    currentUser = resp.data;
+                    applyCurrentUser(currentUser);
+                })
+                .catch(() => {});
+        }
+
+        function applyCurrentUser(u) {
+            const navAvatar = document.querySelector('#user-avatar img');
+            if (navAvatar && u.avatar_url) navAvatar.src = u.avatar_url;
+
+            const settingsAvatar = document.getElementById('settings-avatar');
+            if (settingsAvatar && u.avatar_url) settingsAvatar.src = u.avatar_url;
+
+            const settingsName = document.getElementById('settings-name');
+            if (settingsName) settingsName.textContent = u.display_name || '';
+
+            const settingsUsername = document.getElementById('settings-username');
+            if (settingsUsername) settingsUsername.textContent = u.profile_slug ? '@' + u.profile_slug : '';
+
+            const settingsProfileLink = document.getElementById('settings-profile-link');
+            if (settingsProfileLink && u.profile_slug) settingsProfileLink.href = '/@' + u.profile_slug;
+        }
 
         function init() {
             const now = new Date();
@@ -536,6 +572,7 @@
             initModal();
             initSettings();
 
+            fetchCurrentUser();
             render();
             fetchTasks(selectedDate);
         }
@@ -662,22 +699,70 @@
 
         function fetchTasks(date) {
             const dateStr = formatDate(date);
-            fetch(`${API_BASE}/api/tasks?date=${dateStr}`)
-                .then(r => r.ok ? r.json() : [])
-                .then(tasks => renderTasks(tasks))
+            fetch(`/api/v1/tasks?due_date_from=${dateStr}&due_date_to=${dateStr}&limit=100`, { headers: authHeaders() })
+                .then(r => r.ok ? r.json() : null)
+                .then(resp => {
+                    const tasks = (resp && resp.data) ? resp.data.map(mapTaskFromApi) : [];
+                    renderTasks(tasks);
+                })
                 .catch(() => renderTasks([]));
         }
 
+        function mapTaskFromApi(t) {
+            return {
+                id: t.id,
+                title: t.title,
+                completed: t.status === 'done',
+                status: t.status,
+                category: t.group_id || 'default',
+                tag: (t.tags && t.tags.length > 0) ? t.tags[0] : null,
+                time: t.start_time ? formatTimeLabel(t.start_time, t.end_time) : null,
+                link: (t.reference_links && t.reference_links.length > 0) ? t.reference_links[0] : null,
+                highlighted: false,
+                reactions: []
+            };
+        }
+
+        function formatTimeLabel(start, end) {
+            try {
+                const s = new Date(start);
+                const fmt = (d) => {
+                    const h = d.getHours();
+                    const m = String(d.getMinutes()).padStart(2, '0');
+                    const period = h < 12 ? '오전' : '오후';
+                    const dispH = h === 0 ? 12 : (h > 12 ? h - 12 : h);
+                    return `${period} ${dispH}:${m}`;
+                };
+                let label = fmt(s);
+                if (end) {
+                    const e = new Date(end);
+                    label += ' - ' + fmt(e);
+                }
+                return label;
+            } catch (e) { return null; }
+        }
+
         function fetchMonthlyStats() {
-            const from = formatDate(new Date(currentYear, currentMonth, 1));
-            const to = formatDate(new Date(currentYear, currentMonth + 1, 0));
-            fetch(`${API_BASE}/api/tasks/stats?from=${from}&to=${to}`)
-                .then(r => r.ok ? r.json() : { completionRate: 0, heatmap: {} })
-                .then(stats => {
-                    const pct = Math.round(stats.completionRate || 0);
+            fetch(`/api/v1/tasks/calendar/monthly?year=${currentYear}&month=${currentMonth + 1}`, { headers: authHeaders() })
+                .then(r => r.ok ? r.json() : null)
+                .then(resp => {
+                    if (!resp || !resp.data) return;
+                    const days = resp.data;
+                    const heatmap = {};
+                    let totalTasks = 0, doneTasks = 0;
+                    days.forEach(d => {
+                        const count = d.total_count || d.totalCount || 0;
+                        const done = d.done_count || d.doneCount || 0;
+                        if (count > 0) {
+                            heatmap[d.date] = Math.min(5, Math.ceil((count / 8) * 5));
+                        }
+                        totalTasks += count;
+                        doneTasks += done;
+                    });
+                    const pct = totalTasks > 0 ? Math.round((doneTasks / totalTasks) * 100) : 0;
                     document.getElementById('monthly-completion-percent').textContent = pct + '%';
                     document.getElementById('monthly-completion-bar').style.width = pct + '%';
-                    if (stats.heatmap) applyHeatmap(stats.heatmap);
+                    applyHeatmap(heatmap);
                 })
                 .catch(() => {});
         }
@@ -788,8 +873,20 @@
         }
 
         function toggleTask(taskId) {
-            fetch(`${API_BASE}/api/tasks/${taskId}/toggle`, { method: 'PATCH' })
-                .then(r => { if (r.ok) { fetchTasks(selectedDate); fetchMonthlyStats(); } });
+            fetch(`/api/v1/tasks/${taskId}`, { headers: authHeaders() })
+                .then(r => r.ok ? r.json() : null)
+                .then(resp => {
+                    if (!resp || !resp.data) return;
+                    const currentStatus = resp.data.status;
+                    const newStatus = currentStatus === 'done' ? 'todo' : 'done';
+                    return fetch(`/api/v1/tasks/${taskId}`, {
+                        method: 'PATCH',
+                        headers: authHeaders(),
+                        body: JSON.stringify({ status: newStatus })
+                    });
+                })
+                .then(r => { if (r && r.ok) { fetchTasks(selectedDate); fetchMonthlyStats(); } })
+                .catch(() => {});
         }
 
         function openAddTask() {
@@ -853,20 +950,20 @@
 
             const payload = {
                 title: title,
-                date: formatDate(taskDate),
-                category: category,
-                link: link || null,
-                isPublic: isPublic
+                due_date: formatDate(taskDate),
+                visibility: isPublic ? 'public' : 'private',
+                tags: category && category !== 'default' ? [category] : [],
+                reference_links: link ? [link] : []
             };
-            if (taskStartTime) payload.startTime = taskStartTime;
-            if (taskEndTime) payload.endTime = taskEndTime;
+            if (taskStartTime) payload.start_time = taskStartTime + ':00Z';
+            if (taskEndTime) payload.end_time = taskEndTime + ':00Z';
 
-            fetch(`${API_BASE}/api/tasks`, {
+            fetch('/api/v1/tasks', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: authHeaders(),
                 body: JSON.stringify(payload)
             }).then(r => {
-                if (r.ok) {
+                if (r.ok || r.status === 201) {
                     closeAddTask();
                     fetchTasks(selectedDate);
                     fetchMonthlyStats();
@@ -884,9 +981,16 @@
         const FALLBACK_COLORS = ['#82ccbd', '#fb923c', '#60a5fa', '#a78bfa', '#f472b6', '#34d399', '#fbbf24'];
 
         function fetchTags() {
-            fetch(`${API_BASE}/api/tags`)
-                .then(r => r.ok ? r.json() : [])
-                .then(tags => renderTags(tags))
+            fetch('/api/v1/groups?limit=100', { headers: authHeaders() })
+                .then(r => r.ok ? r.json() : null)
+                .then(resp => {
+                    const groups = (resp && resp.data) ? resp.data.map(g => ({
+                        id: g.id,
+                        name: g.description || g.id,
+                        color: g.color || null
+                    })) : [];
+                    renderTags(groups);
+                })
                 .catch(() => renderTags([]));
         }
 
@@ -1100,12 +1204,12 @@
             });
 
             saveBtn.addEventListener('click', () => {
-                fetch(`${API_BASE}/api/profile`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
+                fetch('/api/v1/users/me', {
+                    method: 'PATCH',
+                    headers: authHeaders(),
                     body: JSON.stringify({
                         bio: bio.value,
-                        isPublic: publicToggle.checked
+                        visibility: publicToggle.checked ? 'public' : 'private'
                     })
                 }).then(r => {
                     if (r.ok) {
@@ -1123,10 +1227,10 @@
                 if (!name || !name.trim()) return;
                 const color = GROUP_COLOR_OPTIONS[currentGroups.length % GROUP_COLOR_OPTIONS.length];
                 const newGroup = { id: 'g' + Date.now(), name: name.trim(), color: color, visibility: 'public' };
-                fetch(`${API_BASE}/api/groups`, {
+                fetch('/api/v1/groups', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name: name.trim(), color: color })
+                    headers: authHeaders(),
+                    body: JSON.stringify({ description: name.trim(), color: color })
                 }).then(r => r.ok ? r.json() : null)
                   .then(data => {
                       if (data && data.data) { currentGroups.push(data.data); }
@@ -1207,27 +1311,32 @@
         }
 
         function fetchProfile() {
-            fetch(`${API_BASE}/api/profile`)
+            if (currentUser) {
+                applyProfileFromUser(currentUser);
+                return;
+            }
+            fetch('/api/v1/users/me', { headers: authHeaders() })
                 .then(r => r.ok ? r.json() : null)
-                .then(profile => {
-                    if (!profile) return;
-                    document.getElementById('settings-name').textContent = profile.name || '';
-                    document.getElementById('settings-username').textContent = profile.username ? '@' + profile.username : '';
-                    if (profile.avatarUrl) document.getElementById('settings-avatar').src = profile.avatarUrl;
-                    if (profile.profileUrl) document.getElementById('settings-profile-link').href = profile.profileUrl;
-
-                    const bio = document.getElementById('settings-bio');
-                    bio.value = profile.bio || '';
-                    document.getElementById('settings-bio-count').textContent = bio.value.length + ' / 100';
-                    document.getElementById('settings-public-toggle').checked = profile.isPublic !== false;
-                    document.getElementById('btn-save-profile').disabled = true;
-
-                    if (window._settingsInitialState) {
-                        window._settingsInitialState.setBio(bio.value);
-                        window._settingsInitialState.setPublic(profile.isPublic !== false);
-                    }
+                .then(resp => {
+                    if (resp && resp.data) applyProfileFromUser(resp.data);
                 })
                 .catch(() => {});
+        }
+
+        function applyProfileFromUser(u) {
+            document.getElementById('settings-name').textContent = u.display_name || '';
+            document.getElementById('settings-username').textContent = u.profile_slug ? '@' + u.profile_slug : '';
+            if (u.avatar_url) document.getElementById('settings-avatar').src = u.avatar_url;
+            if (u.profile_slug) document.getElementById('settings-profile-link').href = '/@' + u.profile_slug;
+
+            const bio = document.getElementById('settings-bio');
+            bio.value = u.bio || '';
+            document.getElementById('settings-bio-count').textContent = bio.value.length + ' / 100';
+            document.getElementById('btn-save-profile').disabled = true;
+
+            if (window._settingsInitialState) {
+                window._settingsInitialState.setBio(bio.value);
+            }
         }
 
         const GROUP_COLOR_OPTIONS = ['#6ee7b7', '#a7d7cc', '#fca5a5', '#fcd34d', '#7dd3fc', '#a5b4fc', '#cbd5e1', '#f0abfc'];
@@ -1241,13 +1350,16 @@
         let pendingDeleteId = null;
 
         function fetchGroups() {
-            fetch(`${API_BASE}/api/groups`)
+            fetch('/api/v1/groups?limit=100', { headers: authHeaders() })
                 .then(r => r.ok ? r.json() : null)
-                .then(data => {
-                    if (data && Array.isArray(data) && data.length > 0) {
-                        currentGroups = data;
-                    } else if (data && data.data && Array.isArray(data.data)) {
-                        currentGroups = data.data;
+                .then(resp => {
+                    if (resp && resp.data && resp.data.length > 0) {
+                        currentGroups = resp.data.map(g => ({
+                            id: g.id,
+                            name: g.description || g.id,
+                            color: g.color || '#82ccbd',
+                            visibility: g.visibility || 'public'
+                        }));
                     } else {
                         currentGroups = DUMMY_GROUPS;
                     }
@@ -1361,17 +1473,17 @@
 
         function updateGroup(g) {
             if (!g.id || g.id.startsWith('g')) return;
-            fetch(`${API_BASE}/api/groups/${g.id}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name: g.name, color: g.color, visibility: g.visibility })
+            fetch(`/api/v1/groups/${g.id}`, {
+                method: 'PATCH',
+                headers: authHeaders(),
+                body: JSON.stringify({ description: g.name, color: g.color, visibility: g.visibility })
             }).catch(() => {});
         }
 
         function confirmDeleteGroup(groupId) {
             pendingDeleteId = null;
-            fetch(`${API_BASE}/api/groups/${groupId}`, { method: 'DELETE' })
-                .then(r => {
+            fetch(`/api/v1/groups/${groupId}`, { method: 'DELETE', headers: authHeaders() })
+                .then(() => {
                     currentGroups = currentGroups.filter(g => g.id !== groupId);
                     renderGroups();
                 })
