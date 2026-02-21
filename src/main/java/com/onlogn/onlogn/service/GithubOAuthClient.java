@@ -51,9 +51,12 @@ public class GithubOAuthClient {
                 .retrieve()
                 .body(Map.class);
 
+        log.info("GitHub token exchange request — client_id={}, redirect_uri={}, code_length={}", clientId, redirectUri, code != null ? code.length() : 0);
+        log.info("GitHub token exchange response — {}", response);
+
         if (response == null || response.containsKey("error")) {
             String error = response != null ? String.valueOf(response.get("error_description")) : "No response";
-            log.warn("GitHub token exchange failed: {}", error);
+            log.warn("GitHub token exchange failed: {} (error={})", error, response != null ? response.get("error") : "null");
             throw new ApiException(
                     ProblemType.AUTHENTICATION_REQUIRED,
                     "GitHub OAuth code is invalid or expired: " + error,
