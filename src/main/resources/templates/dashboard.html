@@ -78,6 +78,24 @@
         .reaction-chip {
             @apply flex items-center gap-1 px-1.5 py-0.5 bg-primary/5 border border-primary/10 rounded-md transition-all hover:bg-primary/10 cursor-pointer;
         }
+        .swipe-container {
+            @apply relative overflow-hidden rounded-lg;
+        }
+        .swipe-actions {
+            @apply absolute inset-y-0 right-0 flex opacity-0 pointer-events-none transition-opacity duration-200;
+        }
+        .swipe-container.swiped .swipe-actions {
+            @apply opacity-100 pointer-events-auto;
+        }
+        .swipe-container.swiped .swipe-content {
+            transform: translateX(-8rem);
+        }
+        .swipe-content {
+            @apply relative z-10 bg-white dark:bg-[#1c2624] transition-transform duration-200;
+        }
+        .swipe-action-btn {
+            @apply flex items-center justify-center w-16 h-full transition-all;
+        }
         .week-scroll-container::-webkit-scrollbar {
             display: none;
         }
@@ -704,6 +722,28 @@
                 .then(resp => {
                     const tasks = (resp && resp.data) ? resp.data.map(mapTaskFromApi) : [];
                     renderTasks(tasks);
+                    tasks.forEach((t, idx) => {
+                        if (!t.id) return;
+                        fetch(`/api/v1/tasks/${t.id}/reactions`)
+                            .then(r => r.ok ? r.json() : null)
+                            .then(resp => {
+                                if (!resp || !resp.data || resp.data.length === 0) return;
+                                const chips = document.querySelectorAll(`[data-task-id="${t.id}"]`);
+                                if (chips.length === 0) return;
+                                const row = chips[0].closest('.task-row');
+                                if (!row) return;
+                                let reactionBar = row.querySelector('.reaction-bar');
+                                if (!reactionBar) {
+                                    reactionBar = document.createElement('div');
+                                    reactionBar.className = 'flex items-center gap-1.5 mt-2 ml-1 reaction-bar';
+                                    row.querySelector('.flex-1').appendChild(reactionBar);
+                                }
+                                reactionBar.innerHTML = resp.data.map(r =>
+                                    `<div class="reaction-chip"><span class="text-[10px] md:text-[11px]">${r.emoji}</span><span class="text-[8px] md:text-[9px] font-bold opacity-60">${r.count}</span></div>`
+                                ).join('');
+                            })
+                            .catch(() => {});
+                    });
                 })
                 .catch(() => renderTasks([]));
         }
@@ -822,8 +862,26 @@
         }
 
         function createTaskRow(task, colors) {
-            const row = document.createElement('div');
             const isHighlighted = task.highlighted;
+
+            const container = document.createElement('div');
+            container.className = 'swipe-container';
+
+            const actions = document.createElement('div');
+            actions.className = 'swipe-actions';
+            actions.innerHTML = `
+                <button class="swipe-action-btn bg-gray-400 text-white" data-action="edit">
+                    <span class="material-symbols-outlined">edit</span>
+                </button>
+                <button class="swipe-action-btn bg-red-500 text-white" data-action="delete">
+                    <span class="material-symbols-outlined">delete</span>
+                </button>`;
+            container.appendChild(actions);
+
+            const content = document.createElement('div');
+            content.className = 'swipe-content';
+
+            const row = document.createElement('div');
             row.className = 'task-row' + (isHighlighted ? ' bg-primary/5 rounded-lg border-l-4 border-l-primary px-3 md:px-4' : '');
 
             const checkEl = task.completed
@@ -854,7 +912,7 @@
             }
 
             const tagLabel = task.tag
-                ? `<span class="text-[8px] md:text-[9px] font-bold ${colors.labelBg} uppercase px-1.5 md:px-2 py-0.5 rounded">${escapeHtml(task.tag)}</span>`
+                ? `<span class="text-[8px] md:text-[9px] font-bold ${colors.labelBg} uppercase px-1.5 md:px-2 py-0.5 rounded shrink-0">${escapeHtml(task.tag)}</span>`
                 : '';
 
             row.innerHTML = `
@@ -865,11 +923,89 @@
                 </div>
                 ${tagLabel}`;
 
+            content.appendChild(row);
+            container.appendChild(content);
+
             row.querySelectorAll('[data-action="toggle"]').forEach(el => {
                 el.addEventListener('click', () => toggleTask(task.id));
             });
 
-            return row;
+            actions.querySelector('[data-action="delete"]').addEventListener('click', () => deleteTask(task.id));
+
+            initSwipe(container, content);
+
+            return container;
+        }
+
+        function deleteTask(taskId) {
+            if (!confirm('이 할 일을 삭제할까요?')) return;
+            fetch(`/api/v1/tasks/${taskId}`, { method: 'DELETE', headers: authHeaders() })
+                .then(() => { fetchTasks(selectedDate); fetchMonthlyStats(); })
+                .catch(() => {});
+        }
+
+        function initSwipe(container, content) {
+            let startX = 0, currentX = 0, isSwiping = false;
+            const threshold = 64;
+
+            content.addEventListener('touchstart', (e) => {
+                startX = e.touches[0].clientX;
+                isSwiping = true;
+                content.style.transition = 'none';
+            }, { passive: true });
+
+            content.addEventListener('touchmove', (e) => {
+                if (!isSwiping) return;
+                currentX = e.touches[0].clientX;
+                const diff = Math.min(0, Math.max(-128, currentX - startX));
+                content.style.transform = `translateX(${diff}px)`;
+            }, { passive: true });
+
+            content.addEventListener('touchend', () => {
+                isSwiping = false;
+                content.style.transition = '';
+                const diff = currentX - startX;
+                if (diff < -threshold) {
+                    container.classList.add('swiped');
+                    content.style.transform = '';
+                } else {
+                    container.classList.remove('swiped');
+                    content.style.transform = '';
+                }
+            });
+
+            content.addEventListener('mousedown', (e) => {
+                startX = e.clientX;
+                isSwiping = true;
+                content.style.transition = 'none';
+                const onMove = (ev) => {
+                    if (!isSwiping) return;
+                    currentX = ev.clientX;
+                    const diff = Math.min(0, Math.max(-128, currentX - startX));
+                    content.style.transform = `translateX(${diff}px)`;
+                };
+                const onUp = () => {
+                    isSwiping = false;
+                    content.style.transition = '';
+                    const diff = currentX - startX;
+                    if (diff < -threshold) {
+                        container.classList.add('swiped');
+                    } else {
+                        container.classList.remove('swiped');
+                    }
+                    content.style.transform = '';
+                    document.removeEventListener('mousemove', onMove);
+                    document.removeEventListener('mouseup', onUp);
+                };
+                document.addEventListener('mousemove', onMove);
+                document.addEventListener('mouseup', onUp);
+            });
+
+            document.addEventListener('click', (e) => {
+                if (!container.contains(e.target) && container.classList.contains('swiped')) {
+                    container.classList.remove('swiped');
+                }
+            });
         }
 
         function toggleTask(taskId) {
