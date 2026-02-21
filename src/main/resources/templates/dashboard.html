@@ -611,6 +611,7 @@
         let taskStartTime = '', taskEndTime = '';
         let currentUser = null;
         let groupMap = {};
+        let groupOrder = [];
 
         function authHeaders(extra) {
             const headers = Object.assign({ 'Content-Type': 'application/json' }, extra || {});
@@ -791,13 +792,15 @@
                 .then(r => r.ok ? r.json() : null)
                 .then(resp => {
                     groupMap = {};
+                    groupOrder = [];
                     if (resp && resp.data) {
                         resp.data.forEach(g => {
                             groupMap[g.id] = { name: g.description || g.id, color: g.color || '#82ccbd' };
+                            groupOrder.push(g.id);
                         });
                     }
                 })
-                .catch(() => { groupMap = {}; });
+                .catch(() => { groupMap = {}; groupOrder = []; });
         }
 
         function fetchTasks(date) {
@@ -943,7 +946,16 @@
                 return;
             }
 
-            Object.entries(grouped).forEach(([cat, items]) => {
+            const sortedKeys = Object.keys(grouped).sort((a, b) => {
+                const ai = groupOrder.indexOf(a);
+                const bi = groupOrder.indexOf(b);
+                const aIdx = ai >= 0 ? ai : 9999;
+                const bIdx = bi >= 0 ? bi : 9999;
+                return aIdx - bIdx;
+            });
+
+            sortedKeys.forEach(cat => {
+                const items = grouped[cat];
                 const group = getGroupColors(cat);
 
                 const header = document.createElement('div');
