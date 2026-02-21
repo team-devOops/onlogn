@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" class="light" lang="ko">
+<head>
+    <meta charset="utf-8"/>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    <title>O(NlogN) - 대시보드</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@200;300;400;500;600;700&display=swap" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#82ccbd",
+                        "sage-green": "#a7d7cc",
+                        "background-light": "#f6f7f7",
+                        "background-dark": "#151d1c",
+                    },
+                    fontFamily: {
+                        "display": ["IBM Plex Sans", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.5rem",
+                        "lg": "1rem",
+                        "xl": "1.5rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        };
+    </script>
+    <style type="text/tailwindcss">
+        @layer base {
+            body {
+                @apply font-display bg-background-light text-[#111816] dark:bg-background-dark dark:text-[#f6f7f7] antialiased;
+            }
+        }
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 1px;
+            background-color: rgba(130, 204, 189, 0.03);
+            border: 1px solid rgba(130, 204, 189, 0.05);
+            border-radius: 0.5rem;
+            overflow: hidden;
+        }
+        .day-cell {
+            @apply bg-white dark:bg-[#1c2624] min-h-[36px] md:min-h-[42px] p-0.5 md:p-1 transition-all cursor-pointer hover:z-10 relative flex flex-col items-center justify-center border-[0.5px] border-primary/[0.03];
+        }
+        .date-num {
+            @apply text-[9px] md:text-[10px] font-extralight opacity-60;
+        }
+        .day-cell.today .date-num {
+            @apply opacity-100 font-semibold;
+        }
+        .day-cell.today::after {
+            content: '';
+            @apply absolute bottom-1 w-1 h-1 bg-primary rounded-full;
+        }
+        .heat-0 { @apply bg-white dark:bg-[#1c2624]; }
+        .heat-1 { @apply bg-[#f0f9f7] dark:bg-primary/5; }
+        .heat-2 { @apply bg-[#e1f3ef] dark:bg-primary/10; }
+        .heat-3 { @apply bg-[#ccece5] dark:bg-primary/20; }
+        .heat-4 { @apply bg-[#b3e1d6] dark:bg-primary/30; }
+        .heat-5 { @apply bg-[#99d7c9] dark:bg-primary/40; }
+        .task-row {
+            @apply flex items-start gap-4 py-3 px-2 border-b border-gray-100 dark:border-white/5 last:border-0 hover:bg-gray-50/50 dark:hover:bg-white/5 transition-colors;
+        }
+        .category-header {
+            @apply sticky top-0 bg-white/95 dark:bg-[#1c2624]/95 backdrop-blur-sm z-10 py-3 mt-4 first:mt-0 flex items-center justify-between border-b border-primary/10;
+        }
+        .btn-pressed-hover:hover {
+            box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.06);
+        }
+        .reaction-chip {
+            @apply flex items-center gap-1 px-1.5 py-0.5 bg-primary/5 border border-primary/10 rounded-md transition-all hover:bg-primary/10 cursor-pointer;
+        }
+        .week-scroll-container::-webkit-scrollbar {
+            display: none;
+        }
+        .week-scroll-container {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+</head>
+<body class="min-h-screen">
+<div class="max-w-[1400px] mx-auto px-4 py-6 md:px-8">
+
+    <nav class="flex items-center justify-between mb-8">
+        <div class="flex items-center gap-2 text-[#111816] dark:text-[#f6f7f7]">
+            <div class="bg-primary p-1.5 rounded-lg flex items-center justify-center">
+                <span class="material-symbols-outlined text-white text-lg" style="font-variation-settings: 'FILL' 1">terminal</span>
+            </div>
+            <span class="text-base font-extrabold tracking-tight">O(NlogN)</span>
+        </div>
+        <div class="flex items-center">
+            <div id="user-avatar" class="size-10 md:size-12 rounded-full overflow-hidden border-2 border-white dark:border-primary/20 shadow-sm bg-primary/10 ring-2 ring-primary/5 transition-all hover:ring-primary/20 cursor-pointer">
+                <img alt="avatar" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDlIxV012rtQSh3c816kig9I1rbZnOaJmHo4nBU18epa_cHJBOc6RIKQrel5uCTlcNcSTueF4n7lQ00MlvOFxCrUlvWhepcY4Zj0o_WbyGjJMcgNheolAZmooM3x0N5zfuQI4cdQymnFkq50O66u5pVYll18Ueyt_dpRHayzgyPlxsiNIuOSpTxOzHITr8dSDi7W9LkBrkHVidABRjBJ3Kh3bBAYoewy4E22WO71VZ9Jbmn6BQLw4nA8-qoh9TmoWGa1K1ULgeX3AwG"/>
+            </div>
+        </div>
+    </nav>
+
+    <header class="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-6">
+        <div class="flex items-center gap-4 md:gap-6">
+            <h1 id="month-title" class="text-xl md:text-3xl font-bold tracking-tight"></h1>
+            <div class="flex gap-2">
+                <button id="btn-prev-month" class="size-8 md:size-9 flex items-center justify-center rounded-lg hover:bg-primary/10 border border-primary/10 transition-all btn-pressed-hover">
+                    <span class="material-symbols-outlined text-lg">chevron_left</span>
+                </button>
+                <button id="btn-next-month" class="size-8 md:size-9 flex items-center justify-center rounded-lg hover:bg-primary/10 border border-primary/10 transition-all btn-pressed-hover">
+                    <span class="material-symbols-outlined text-lg">chevron_right</span>
+                </button>
+            </div>
+            <button id="btn-today" class="hidden sm:block px-6 py-1.5 text-xs font-bold border border-primary/20 rounded-md hover:bg-primary/10 transition-all bg-white/50 btn-pressed-hover">오늘</button>
+        </div>
+        <div class="flex flex-col items-start lg:items-end gap-2">
+            <div class="flex items-center gap-3">
+                <span class="text-[9px] md:text-[10px] font-bold text-primary/70 uppercase tracking-widest">Monthly Goal Completion</span>
+                <span id="monthly-completion-percent" class="text-sm md:text-base font-bold text-primary">0%</span>
+            </div>
+            <div class="h-1.5 w-full md:w-64 bg-primary/10 rounded-full overflow-hidden">
+                <div id="monthly-completion-bar" class="h-full bg-primary w-0 transition-all duration-700 ease-out"></div>
+            </div>
+        </div>
+    </header>
+
+    <div class="lg:hidden mb-8">
+        <div class="overflow-x-auto week-scroll-container">
+            <div id="mobile-week-strip" class="flex gap-2 min-w-max pb-1"></div>
+        </div>
+    </div>
+
+    <div class="flex flex-col lg:grid lg:grid-cols-12 gap-6 md:gap-8">
+
+        <aside class="hidden lg:block lg:col-span-4 xl:col-span-3">
+            <div class="calendar-content sticky top-8">
+                <div class="grid grid-cols-7 mb-2 px-1 text-center">
+                    <div class="text-[9px] font-black text-red-400/80 uppercase tracking-widest py-1">S</div>
+                    <div class="text-[9px] font-black opacity-60 uppercase tracking-widest py-1">M</div>
+                    <div class="text-[9px] font-black opacity-60 uppercase tracking-widest py-1">T</div>
+                    <div class="text-[9px] font-black opacity-60 uppercase tracking-widest py-1">W</div>
+                    <div class="text-[9px] font-black opacity-60 uppercase tracking-widest py-1">T</div>
+                    <div class="text-[9px] font-black opacity-60 uppercase tracking-widest py-1">F</div>
+                    <div class="text-[9px] font-black text-blue-400/80 uppercase tracking-widest py-1">S</div>
+                </div>
+                <div id="calendar-grid" class="calendar-grid shadow-sm mb-3"></div>
+                <div class="flex items-center justify-between px-1 mb-6 lg:mb-0">
+                    <span class="text-[8px] font-bold opacity-30 uppercase tracking-widest">Intensity</span>
+                    <div class="flex gap-1">
+                        <div class="size-1.5 rounded-sm bg-primary/10"></div>
+                        <div class="size-1.5 rounded-sm bg-primary/30"></div>
+                        <div class="size-1.5 rounded-sm bg-primary/50"></div>
+                        <div class="size-1.5 rounded-sm bg-primary/70"></div>
+                        <div class="size-1.5 rounded-sm bg-primary"></div>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <main class="lg:col-span-8 xl:col-span-9">
+            <div class="bg-white dark:bg-[#1c2624] rounded-2xl p-4 md:p-8 border border-primary/10 shadow-sm min-h-full">
+
+                <div class="flex items-center justify-between mb-6 md:mb-8 pb-4 border-b border-primary/5">
+                    <div>
+                        <h2 id="day-title" class="text-lg md:text-2xl font-bold"></h2>
+                        <div class="flex items-center gap-2 mt-1">
+                            <span class="text-xs md:text-sm font-semibold text-primary">오늘의 할 일</span>
+                            <span id="task-progress" class="text-[9px] md:text-[11px] px-2 py-0.5 bg-primary/10 text-primary rounded-full font-bold">0 / 0 완료</span>
+                        </div>
+                    </div>
+                    <button id="btn-add-task" class="size-9 md:size-11 bg-primary text-white rounded-xl flex items-center justify-center hover:bg-primary/90 transition-all shadow-lg shadow-primary/20">
+                        <span class="material-symbols-outlined text-xl md:text-2xl font-bold">add</span>
+                    </button>
+                </div>
+
+                <div id="task-list" class="space-y-1"></div>
+
+                <div id="today-insight" class="mt-8 md:mt-12 p-4 md:p-5 bg-primary/5 rounded-xl border border-primary/10 relative overflow-hidden group">
+                    <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform">
+                        <span class="material-symbols-outlined text-4xl md:text-5xl text-primary">auto_awesome</span>
+                    </div>
+                    <div class="flex items-center gap-2 mb-2">
+                        <span class="material-symbols-outlined text-primary text-base md:text-lg">insights</span>
+                        <span class="text-[9px] md:text-[10px] font-bold text-primary uppercase tracking-widest">Today's Insight</span>
+                    </div>
+                    <p id="insight-text" class="text-[11px] md:text-xs leading-relaxed opacity-60 max-w-2xl"></p>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <footer class="mt-12 md:mt-16 pt-8 border-t border-primary/10 flex flex-col md:flex-row items-center justify-between gap-6 opacity-40">
+        <p class="text-[8px] md:text-[9px] font-bold uppercase tracking-[0.3em] text-center md:text-left">&copy; 2024 O(NlogN). ALL RIGHTS RESERVED.</p>
+        <div class="flex gap-6 md:gap-10">
+            <a class="text-[8px] md:text-[9px] font-bold uppercase tracking-[0.15em] hover:text-primary transition-colors" href="#">Privacy Policy</a>
+            <a class="text-[8px] md:text-[9px] font-bold uppercase tracking-[0.15em] hover:text-primary transition-colors" href="#">Terms of Service</a>
+            <a class="text-[8px] md:text-[9px] font-bold uppercase tracking-[0.15em] hover:text-primary transition-colors" href="#">Support</a>
+        </div>
+    </footer>
+</div>
+
+<script th:inline="javascript">
+    const API_BASE = /*[[${apiBase}]]*/ '';
+</script>
+<script>
+    (function () {
+        const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'];
+        const HEAT_CLASSES = ['heat-0', 'heat-1', 'heat-2', 'heat-3', 'heat-4', 'heat-5'];
+        const CATEGORY_COLORS = {
+            morning:   { dot: 'bg-orange-400', label: 'text-orange-400', labelBg: 'text-orange-400/40 bg-orange-400/5' },
+            work:      { dot: 'bg-blue-400',   label: 'text-blue-400',   labelBg: 'text-blue-400/40 bg-blue-400/5' },
+            personal:  { dot: 'bg-purple-400', label: 'text-purple-400', labelBg: 'text-purple-400/40 bg-purple-400/5' },
+            'default': { dot: 'bg-primary',    label: 'text-primary',    labelBg: 'text-primary/40 bg-primary/5' }
+        };
+
+        let currentYear, currentMonth, selectedDate;
+
+        function init() {
+            const now = new Date();
+            currentYear = now.getFullYear();
+            currentMonth = now.getMonth();
+            selectedDate = now;
+
+            document.getElementById('btn-prev-month').addEventListener('click', () => changeMonth(-1));
+            document.getElementById('btn-next-month').addEventListener('click', () => changeMonth(1));
+            document.getElementById('btn-today').addEventListener('click', goToday);
+            document.getElementById('btn-add-task').addEventListener('click', openAddTask);
+
+            render();
+            fetchTasks(selectedDate);
+        }
+
+        function changeMonth(delta) {
+            currentMonth += delta;
+            if (currentMonth > 11) { currentMonth = 0; currentYear++; }
+            if (currentMonth < 0)  { currentMonth = 11; currentYear--; }
+            render();
+        }
+
+        function goToday() {
+            const now = new Date();
+            currentYear = now.getFullYear();
+            currentMonth = now.getMonth();
+            selectedDate = now;
+            render();
+            fetchTasks(selectedDate);
+        }
+
+        function render() {
+            renderMonthTitle();
+            renderDayTitle();
+            renderCalendar();
+            renderMobileWeek();
+            fetchMonthlyStats();
+        }
+
+        function renderMonthTitle() {
+            document.getElementById('month-title').textContent = `${currentYear}년 ${currentMonth + 1}월`;
+        }
+
+        function renderDayTitle() {
+            const d = selectedDate;
+            document.getElementById('day-title').textContent =
+                `${d.getMonth() + 1}월 ${d.getDate()}일 ${DAY_NAMES[d.getDay()]}요일`;
+        }
+
+        function renderCalendar() {
+            const grid = document.getElementById('calendar-grid');
+            grid.innerHTML = '';
+            const firstDay = new Date(currentYear, currentMonth, 1).getDay();
+            const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+            const prevDays = new Date(currentYear, currentMonth, 0).getDate();
+            const today = new Date();
+
+            for (let i = firstDay - 1; i >= 0; i--) {
+                grid.appendChild(createDayCell(prevDays - i, true));
+            }
+            for (let d = 1; d <= daysInMonth; d++) {
+                const isToday = today.getFullYear() === currentYear && today.getMonth() === currentMonth && today.getDate() === d;
+                const cell = createDayCell(d, false, isToday);
+                cell.addEventListener('click', () => selectDate(d));
+                grid.appendChild(cell);
+            }
+            const remaining = 7 - ((firstDay + daysInMonth) % 7);
+            if (remaining < 7) {
+                for (let d = 1; d <= remaining; d++) {
+                    grid.appendChild(createDayCell(d, true));
+                }
+            }
+        }
+
+        function createDayCell(day, faded, isToday) {
+            const cell = document.createElement('div');
+            cell.className = `day-cell ${HEAT_CLASSES[0]}` + (faded ? ' opacity-20 bg-gray-50/50' : '') + (isToday ? ' today' : '');
+            const span = document.createElement('span');
+            span.className = 'date-num' + (isToday ? ' text-primary' : '');
+            span.textContent = day;
+            cell.appendChild(span);
+            cell.dataset.day = day;
+            return cell;
+        }
+
+        function selectDate(day) {
+            selectedDate = new Date(currentYear, currentMonth, day);
+            renderDayTitle();
+            fetchTasks(selectedDate);
+        }
+
+        function renderMobileWeek() {
+            const strip = document.getElementById('mobile-week-strip');
+            strip.innerHTML = '';
+            const d = new Date(selectedDate);
+            const dayOfWeek = d.getDay();
+            d.setDate(d.getDate() - dayOfWeek);
+
+            for (let i = 0; i < 11; i++) {
+                const current = new Date(d);
+                current.setDate(d.getDate() + i);
+                const isSelected = current.toDateString() === selectedDate.toDateString();
+                const isSun = current.getDay() === 0;
+                const isSat = current.getDay() === 6;
+
+                const btn = document.createElement('div');
+                btn.className = isSelected
+                    ? 'flex flex-col items-center gap-0.5 p-2 rounded-xl bg-primary text-white border border-primary w-14 shadow-md shadow-primary/20 ring-2 ring-primary/20'
+                    : 'flex flex-col items-center gap-0.5 p-2 rounded-xl bg-white/50 border border-primary/10 w-14 transition-all active:scale-95';
+
+                const dayLabel = document.createElement('span');
+                dayLabel.className = 'text-[9px] font-bold' + (isSelected ? ' opacity-80' : (isSun ? ' text-red-400 opacity-40' : (isSat ? ' text-blue-400 opacity-40' : ' opacity-40')));
+                dayLabel.textContent = DAY_NAMES[current.getDay()];
+
+                const dateLabel = document.createElement('span');
+                dateLabel.className = 'text-xs font-bold' + (!isSelected && isSun ? ' text-red-400' : '') + (!isSelected && isSat ? ' text-blue-400' : '');
+                dateLabel.textContent = current.getDate();
+
+                btn.appendChild(dayLabel);
+                btn.appendChild(dateLabel);
+                btn.addEventListener('click', () => {
+                    selectedDate = current;
+                    currentYear = current.getFullYear();
+                    currentMonth = current.getMonth();
+                    render();
+                    fetchTasks(current);
+                });
+                strip.appendChild(btn);
+            }
+        }
+
+        function fetchTasks(date) {
+            const dateStr = formatDate(date);
+            fetch(`${API_BASE}/api/tasks?date=${dateStr}`)
+                .then(r => r.ok ? r.json() : [])
+                .then(tasks => renderTasks(tasks))
+                .catch(() => renderTasks([]));
+        }
+
+        function fetchMonthlyStats() {
+            const from = formatDate(new Date(currentYear, currentMonth, 1));
+            const to = formatDate(new Date(currentYear, currentMonth + 1, 0));
+            fetch(`${API_BASE}/api/tasks/stats?from=${from}&to=${to}`)
+                .then(r => r.ok ? r.json() : { completionRate: 0, heatmap: {} })
+                .then(stats => {
+                    const pct = Math.round(stats.completionRate || 0);
+                    document.getElementById('monthly-completion-percent').textContent = pct + '%';
+                    document.getElementById('monthly-completion-bar').style.width = pct + '%';
+                    if (stats.heatmap) applyHeatmap(stats.heatmap);
+                })
+                .catch(() => {});
+        }
+
+        function applyHeatmap(heatmap) {
+            document.querySelectorAll('#calendar-grid .day-cell:not(.opacity-20)').forEach(cell => {
+                const day = parseInt(cell.dataset.day);
+                if (!day) return;
+                const dateStr = formatDate(new Date(currentYear, currentMonth, day));
+                const level = Math.min(heatmap[dateStr] || 0, 5);
+                HEAT_CLASSES.forEach(c => cell.classList.remove(c));
+                cell.classList.add(HEAT_CLASSES[level]);
+            });
+        }
+
+        function renderTasks(tasks) {
+            const list = document.getElementById('task-list');
+            list.innerHTML = '';
+
+            const completed = tasks.filter(t => t.completed).length;
+            document.getElementById('task-progress').textContent = `${completed} / ${tasks.length} 완료`;
+
+            const grouped = {};
+            tasks.forEach(t => {
+                const cat = t.category || 'default';
+                if (!grouped[cat]) grouped[cat] = [];
+                grouped[cat].push(t);
+            });
+
+            if (Object.keys(grouped).length === 0) {
+                list.innerHTML = '<div class="py-16 text-center text-sm opacity-40">등록된 할 일이 없습니다</div>';
+                return;
+            }
+
+            Object.entries(grouped).forEach(([cat, items]) => {
+                const colors = CATEGORY_COLORS[cat] || CATEGORY_COLORS['default'];
+
+                const header = document.createElement('div');
+                header.className = 'category-header';
+                header.innerHTML = `
+                    <div class="flex items-center gap-2">
+                        <span class="size-1.5 ${colors.dot} rounded-full"></span>
+                        <span class="text-[9px] md:text-[10px] font-bold ${colors.label} uppercase tracking-widest">${escapeHtml(cat)}</span>
+                    </div>
+                    <span class="text-[9px] md:text-[10px] opacity-40 font-bold">${items.length} TASKS</span>`;
+                list.appendChild(header);
+
+                items.forEach(task => list.appendChild(createTaskRow(task, colors)));
+            });
+        }
+
+        function createTaskRow(task, colors) {
+            const row = document.createElement('div');
+            const isHighlighted = task.highlighted;
+            row.className = 'task-row' + (isHighlighted ? ' bg-primary/5 rounded-lg border-l-4 border-l-primary px-3 md:px-4' : '');
+
+            const checkEl = task.completed
+                ? `<span class="material-symbols-outlined text-primary text-lg md:text-xl mt-0.5 cursor-pointer" data-task-id="${task.id}" data-action="toggle">check_circle</span>`
+                : `<div class="size-4 md:size-5 rounded border-2 ${isHighlighted ? 'border-primary/50' : 'border-primary/30'} flex items-center justify-center mt-1 cursor-pointer" data-task-id="${task.id}" data-action="toggle"></div>`;
+
+            const titleClass = task.completed ? 'line-through opacity-30' : (isHighlighted ? 'font-bold' : '');
+
+            let metaHtml = '';
+            if (task.time) {
+                metaHtml += `<div class="flex items-center gap-3 mt-1">
+                    <span class="text-[10px] md:text-[11px] font-medium opacity-50 flex items-center gap-1">
+                        <span class="material-symbols-outlined text-[12px] md:text-[13px]">schedule</span>${escapeHtml(task.time)}
+                    </span></div>`;
+            }
+            if (task.link) {
+                metaHtml += `<div class="flex items-center gap-1 mt-1 pl-1">
+                    <span class="material-symbols-outlined text-[11px] md:text-[12px] opacity-60">link</span>
+                    <a class="text-[11px] md:text-xs opacity-60 hover:opacity-100 hover:text-primary transition-all truncate max-w-[150px] md:max-w-none" href="${escapeHtml(task.link)}">${escapeHtml(task.link)}</a>
+                </div>`;
+            }
+
+            let reactionsHtml = '';
+            if (task.reactions && task.reactions.length > 0) {
+                reactionsHtml = '<div class="flex items-center gap-1.5 mt-2 ml-1">' +
+                    task.reactions.map(r => `<div class="reaction-chip"><span class="text-[10px] md:text-[11px]">${r.emoji}</span><span class="text-[8px] md:text-[9px] font-bold opacity-60">${r.count}</span></div>`).join('') +
+                    '</div>';
+            }
+
+            const tagLabel = task.tag
+                ? `<span class="text-[8px] md:text-[9px] font-bold ${colors.labelBg} uppercase px-1.5 md:px-2 py-0.5 rounded">${escapeHtml(task.tag)}</span>`
+                : '';
+
+            row.innerHTML = `
+                ${checkEl}
+                <div class="flex-1">
+                    <p class="text-[13px] md:text-[14px] font-medium ${titleClass}">${escapeHtml(task.title)}</p>
+                    ${metaHtml}${reactionsHtml}
+                </div>
+                ${tagLabel}`;
+
+            row.querySelectorAll('[data-action="toggle"]').forEach(el => {
+                el.addEventListener('click', () => toggleTask(task.id));
+            });
+
+            return row;
+        }
+
+        function toggleTask(taskId) {
+            fetch(`${API_BASE}/api/tasks/${taskId}/toggle`, { method: 'PATCH' })
+                .then(r => { if (r.ok) { fetchTasks(selectedDate); fetchMonthlyStats(); } });
+        }
+
+        function openAddTask() {
+            const title = prompt('할 일을 입력하세요:');
+            if (!title || !title.trim()) return;
+            fetch(`${API_BASE}/api/tasks`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ title: title.trim(), date: formatDate(selectedDate) })
+            }).then(r => { if (r.ok) { fetchTasks(selectedDate); fetchMonthlyStats(); } });
+        }
+
+        function formatDate(d) {
+            return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+        }
+
+        function escapeHtml(str) {
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        }
+
+        document.addEventListener('DOMContentLoaded', init);
+    })();
+</script>
+</body>
+</html>
