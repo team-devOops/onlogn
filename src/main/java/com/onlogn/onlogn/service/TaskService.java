@@ -20,9 +20,11 @@ import java.util.UUID;
 public class TaskService {
 
     private final TaskRepository taskRepository;
+    private final BedrockTagExtractor bedrockTagExtractor;
 
-    public TaskService(TaskRepository taskRepository) {
+    public TaskService(TaskRepository taskRepository, BedrockTagExtractor bedrockTagExtractor) {
         this.taskRepository = taskRepository;
+        this.bedrockTagExtractor = bedrockTagExtractor;
     }
 
     @Transactional(readOnly = true)
@@ -66,8 +68,13 @@ public class TaskService {
         task.setDueDate(dueDate);
         task.setStartTime(startTime);
         task.setEndTime(endTime);
-        if (tags != null) {
+        if (tags != null && !tags.isEmpty()) {
             task.setTags(tags);
+        } else {
+            List<String> aiTags = bedrockTagExtractor.extractTags(title);
+            if (!aiTags.isEmpty()) {
+                task.setTags(aiTags);
+            }
         }
         if (referenceLinks != null) {
             task.setReferenceLinks(referenceLinks);

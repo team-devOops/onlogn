@@ -36,6 +36,9 @@ dependencies {
 
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:3.0.1")
 
+    implementation(platform("software.amazon.awssdk:bom:2.31.76"))
+    implementation("software.amazon.awssdk:bedrockruntime")
+
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.springframework.security:spring-security-test")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")

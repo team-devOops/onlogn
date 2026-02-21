@@ -107,3 +107,18 @@
 - **상태**: 승인
 - **결정**: 기능별 수평 레이어 구조를 사용한다.
 - **구조**: common(dto/exception), config, entity, repository, service, controller, security
+
+---
+
+## ADR-013: AWS Bedrock 기반 AI 태그 자동 추출
+
+- **상태**: 승인
+- **결정**: Task 생성 시 사용자가 tags를 제공하지 않으면, AWS Bedrock Converse API로 Claude 3.5 Sonnet을 호출하여 title에서 tags를 자동 추출한다.
+- **근거**: 사용자가 매번 태그를 수동 입력하지 않아도 일관된 분류가 가능하고, 검색/필터/통계 활용도를 높인다.
+- **세부사항**:
+  - SDK: AWS SDK for Java v2 `software.amazon.awssdk:bedrockruntime:2.31.76`
+  - 모델: `anthropic.claude-3-5-sonnet-20241022-v2:0` (설정으로 변경 가능)
+  - 추출 규칙: 1-5개, 소문자, 단어 또는 하이픈 연결
+  - 실패 시 빈 배열로 graceful fallback (서버 에러 없음)
+  - 사용자가 명시적으로 tags를 제공하면 AI 추출을 건너뜀
+- **결과**: `app.bedrock.enabled=true`(기본값)일 때 활성화. AWS 크레덴셜은 DefaultCredentialsProvider로 자동 탐색.
