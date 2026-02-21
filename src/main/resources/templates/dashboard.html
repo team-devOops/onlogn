@@ -294,9 +294,13 @@
 
         function createDayCell(day, faded, isToday) {
             const cell = document.createElement('div');
-            cell.className = `day-cell ${HEAT_CLASSES[0]}` + (faded ? ' opacity-20 bg-gray-50/50' : '') + (isToday ? ' today' : '');
+            const isSelected = !faded && selectedDate.getFullYear() === currentYear && selectedDate.getMonth() === currentMonth && selectedDate.getDate() === day;
+            cell.className = `day-cell ${HEAT_CLASSES[0]}`
+                + (faded ? ' opacity-20 bg-gray-50/50' : '')
+                + (isToday ? ' today' : '')
+                + (isSelected ? ' ring-2 ring-primary ring-inset' : '');
             const span = document.createElement('span');
-            span.className = 'date-num' + (isToday ? ' text-primary' : '');
+            span.className = 'date-num' + (isToday ? ' text-primary' : '') + (isSelected ? ' !font-bold !opacity-100' : '');
             span.textContent = day;
             cell.appendChild(span);
             cell.dataset.day = day;
@@ -305,7 +309,7 @@
 
         function selectDate(day) {
             selectedDate = new Date(currentYear, currentMonth, day);
-            renderDayTitle();
+            render();
             fetchTasks(selectedDate);
         }
 
