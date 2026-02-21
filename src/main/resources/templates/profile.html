@@ -218,6 +218,7 @@
         const MAX_INSIGHT_TASKS = 100;
         const KEYWORD_STOPWORDS = new Set([
             '이번', '최근', '다음', '동안', '기반', '위해', '통해', '정도', '관련', '대한', '그리고', '하지만', '또한', '에서', '으로',
+            '등록된', '투두가', '기록이', '아직', '없습니다',
             'the', 'and', 'for', 'with', 'from', 'that', 'this', 'have', 'your', 'you', 'are', 'was', 'were', 'will', 'has'
         ]);
 
@@ -456,6 +457,11 @@
             })
                 .then(r => r.ok ? r.json() : null)
                 .then(resp => {
+                    const taskCount = resp && resp.data ? (resp.data.task_count || 0) : 0;
+                    if (taskCount === 0) {
+                        renderKeywords([]);
+                        return;
+                    }
                     const reviewText = resp && resp.data ? (resp.data.review || '') : '';
                     const keywords = extractKeywordsFromText(reviewText);
                     renderKeywords(keywords);
