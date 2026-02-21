@@ -459,3 +459,21 @@ v1에서 명시적으로 지원하지 않는 기능 목록이다.
 - 피커에서 선택한 날짜와 시간은 수정 모달에 즉시 반영되어야 한다.
 - 할 일 저장 시 수정된 `due_date`, `start_time`, `end_time` 값이 PATCH 요청 payload에 포함되어야 한다.
 - `start_time`, `end_time`은 시간 문자열(`HH:mm`)이 아닌 RFC3339/ISO-8601 `date-time` 문자열(예: `2026-02-21T05:00:00Z`)로 전송해야 한다.
+
+---
+
+## 17. Dev 프로파일 데이터 시드 호환성 요구사항
+
+- `dev` 프로파일에서 사용하는 `data-dev.sql`의 `users` INSERT는 현재 스키마의 `NOT NULL` 필드(`visibility` 포함)를 모두 채워야 한다.
+- `dev` 프로파일 실행(`spring.profiles.active=dev`) 시 SQL 초기화 단계에서 `Field 'visibility' doesn't have a default value` 오류가 발생하면 안 된다.
+- `data-dev.sql`의 사용자 시드 컬럼 구성은 `users` 엔티티/테이블 제약과 일관되어야 하며, 기본 공개 사용자 데이터는 `visibility='public'`을 명시한다.
+
+---
+
+## 18. 특정 사용자 ID 기준 더미데이터 소유권 이전 SQL 요구사항
+
+- MySQL dev 환경에서 `source_user_uuid`의 더미데이터 소유권을 `target_user_uuid`로 이전할 수 있는 단일 SQL 스크립트를 제공해야 한다.
+- 이전 범위는 `groups.owner_user_id`, `tasks.owner_user_id`, `refresh_tokens.user_id`, `reactions.user_id`를 포함해야 한다.
+- `reactions`의 `(user_id, task_id, emoji)` unique 제약 충돌을 피하기 위해, 이전 전 중복 후보를 정리하는 단계가 있어야 한다.
+- 스크립트는 트랜잭션(`START TRANSACTION`/`COMMIT`) 안에서 실행되어야 하며, 이전 전후 건수 확인용 조회를 포함해야 한다.
+- UUID는 `UUID_TO_BIN`/`BIN_TO_UUID` 규칙을 사용하는 현재 MySQL 스키마와 호환되어야 한다.

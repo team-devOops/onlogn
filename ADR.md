@@ -194,3 +194,21 @@
 - **결정**: `/@{slug}` 웹 라우트는 템플릿 렌더링 전에 `profile_slug` 존재 여부를 조회하고, 미존재 시 `ResponseStatusException(HttpStatus.NOT_FOUND)`를 발생시킨다.
 - **근거**: 기존에는 페이지가 먼저 렌더링된 뒤 API 404로 데이터만 비어 보여 사용자 경험이 혼란스러웠다.
 - **결과**: 존재하지 않는 슬러그 접근 시 즉시 `templates/error/404.html` 흐름으로 이동하여 빈 프로필 화면 노출을 방지한다.
+
+---
+
+## ADR-018: Dev 시드 SQL의 users visibility 필드 명시
+
+- **상태**: 승인
+- **결정**: `application-dev.yaml`에서 로드하는 `data-dev.sql`의 `users` 시드 INSERT에 `visibility` 컬럼을 명시하고 기본값을 `public`으로 채운다.
+- **근거**: `users.visibility`는 `NOT NULL`이며 기본값 없는 INSERT가 MySQL 초기화 단계에서 실패해 `dev` 프로파일 부팅이 중단됐다.
+- **결과**: `spring.profiles.active=dev` 실행 시 SQL 초기화 오류 없이 애플리케이션 컨텍스트가 정상 기동된다.
+
+---
+
+## ADR-019: 특정 사용자 대상 더미데이터 소유권 이전은 오프라인 SQL로 처리
+
+- **상태**: 승인
+- **결정**: 애플리케이션 로직을 추가하지 않고, `docs/migrate-dummy-data-to-user.sql` 오프라인 스크립트로 더미데이터 소유권 이전을 수행한다.
+- **근거**: 대상은 운영 기능이 아닌 dev 데이터 정리 작업이며, owner FK를 일괄 갱신하는 작업은 트랜잭션 SQL이 가장 단순하고 재현 가능하다.
+- **결과**: 지정한 source/target UUID 기준으로 `groups`, `tasks`, `refresh_tokens`, `reactions` 소유권을 이전하며, reaction unique 충돌은 사전 중복 삭제로 방지한다.
