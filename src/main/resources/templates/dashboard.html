@@ -947,6 +947,8 @@
             }
 
             const sortedKeys = Object.keys(grouped).sort((a, b) => {
+                if (a === 'default') return -1;
+                if (b === 'default') return 1;
                 const ai = groupOrder.indexOf(a);
                 const bi = groupOrder.indexOf(b);
                 const aIdx = ai >= 0 ? ai : 9999;
