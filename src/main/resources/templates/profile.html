@@ -287,20 +287,48 @@
             aiText.textContent = 'AI 인사이트를 불러오는 중입니다...';
             const requestId = ++aiRequestId;
 
-            fetch(`${API_BASE}/api/v1/profiles/${PROFILE_SLUG}/ai-summary?period=${period}`)
-                .then(r => r.ok ? r.json() : null)
-                .then(resp => {
+            fetchTasksByPeriod(period, MAX_INSIGHT_TASKS)
+                .then(tasks => {
                     if (requestId !== aiRequestId) return;
-                    if (resp && resp.data && resp.data.summary) {
-                        aiText.textContent = resp.data.summary;
-                    } else {
-                        aiText.textContent = '선택한 기간의 AI 인사이트가 아직 없습니다.';
-                    }
+                    const summary = buildAiSummaryFromTasks(tasks, period);
+                    aiText.textContent = summary;
                 })
                 .catch(() => {
                     if (requestId !== aiRequestId) return;
                     aiText.textContent = 'AI 인사이트를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.';
                 });
+        }
+
+        function getPeriodWindow(period) {
+            const now = new Date();
+            const to = formatDate(now);
+            const days = period === 'weekly' ? 7 : 30;
+            const fromDate = new Date(now);
+            fromDate.setDate(fromDate.getDate() - days);
+            const from = formatDate(fromDate);
+            return { from, to, days };
+        }
+
+        function fetchTasksByPeriod(period, limit) {
+            const { from, to } = getPeriodWindow(period);
+            return fetch(`${API_BASE}/api/v1/profiles/${PROFILE_SLUG}/tasks?due_date_from=${from}&due_date_to=${to}&limit=${limit}`)
+                .then(r => r.ok ? r.json() : null)
+                .then(resp => (resp && resp.data) ? resp.data : []);
+        }
+
+        function buildAiSummaryFromTasks(tasks, period) {
+            if (!tasks || tasks.length === 0) {
+                return '선택한 기간의 AI 인사이트가 아직 없습니다.';
+            }
+
+            const total = tasks.length;
+            const done = tasks.filter(t => t.status === 'done').length;
+            const inProgress = tasks.filter(t => t.status === 'in_progress').length;
+            const todo = tasks.filter(t => t.status === 'todo').length;
+            const rate = total > 0 ? Math.round((done / total) * 100) : 0;
+
+            const periodLabel = period === 'weekly' ? '최근 7일' : '최근 30일';
+            return `${periodLabel} 동안 공개 할 일 ${total}개 중 ${done}개를 완료해 달성률은 ${rate}%입니다. 진행 중 ${inProgress}개, 예정 ${todo}개를 바탕으로 실행 리듬을 이어가고 있어요.`;
         }
 
         function applyProfile(p) {

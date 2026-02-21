@@ -176,3 +176,21 @@
 - **결정**: 공개 프로필 화면의 AI 인사이트는 `GET /api/v1/profiles/{slug}/ai-summary?period=weekly|monthly|30days` API로 제공하고, period 버튼 클릭마다 서버 응답을 갱신한다.
 - **근거**: 클라이언트 고정 문구/더미 데이터는 실제 활동 변화와 불일치하며, 기간 토글 UI와 데이터 일관성을 보장할 수 없다.
 - **결과**: 공개 범위 task(`task.visibility=public` + 연결 group `visibility=public`) 기반 요약을 반환하며, 비공개 프로필은 404로 차단하고 UI에서도 인사이트 영역을 숨긴다.
+
+---
+
+## ADR-018: 공개 프로필 AI 생산성 요약을 tasks API 응답으로 클라이언트 집계
+
+- **상태**: 승인
+- **결정**: `profile.html`의 AI 생산성 요약은 그룹 분포와 동일하게 `GET /api/v1/profiles/{slug}/tasks` 응답을 기간별(`weekly`, `monthly`, `30days`)로 조회해 클라이언트에서 집계한다.
+- **근거**: 동일 공개 경계(public task + public group)를 공유하는 단일 데이터 소스를 사용하면 요약/분포 간 수치 불일치가 줄고, UI 토글 동작을 한 경로로 단순화할 수 있다.
+- **결과**: AI 생산성 요약의 API 호출이 tasks 기반으로 일원화되며, 기간 버튼 클릭 시 due_date 범위 조회 결과로 요약 문구를 재계산한다.
+
+---
+
+## ADR-019: 존재하지 않는 공개 프로필 슬러그는 서버 라우트 단계에서 HTML 404 반환
+
+- **상태**: 승인
+- **결정**: `/@{slug}` 웹 라우트는 템플릿 렌더링 전에 `profile_slug` 존재 여부를 조회하고, 미존재 시 `ResponseStatusException(HttpStatus.NOT_FOUND)`를 발생시킨다.
+- **근거**: 기존에는 페이지가 먼저 렌더링된 뒤 API 404로 데이터만 비어 보여 사용자 경험이 혼란스러웠다.
+- **결과**: 존재하지 않는 슬러그 접근 시 즉시 `templates/error/404.html` 흐름으로 이동하여 빈 프로필 화면 노출을 방지한다.

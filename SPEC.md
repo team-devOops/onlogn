@@ -374,7 +374,7 @@ O(NlogN)은 단순한 할 일 관리(TODO)가 아니라, 실행 기록을 꾸준
 |---------|---------------------|
 | 아바타 + 이름 + @slug + bio | `GET /profiles/{slug}` |
 | 총 task 수 / 완료율 / 연속 일수 | `stats_summary` + 클라이언트 계산 |
-| AI 생산성 요약 | `GET /profiles/{slug}/ai-summary?period=weekly\|monthly\|30days` |
+| AI 생산성 요약 | `GET /profiles/{slug}/tasks?due_date_from&due_date_to&limit=100` 기반 클라이언트 집계 (주간/월간/30일 토글) |
 | 월간 히트맵 | `GET /profiles/{slug}/tasks/calendar/monthly` |
 | 그룹 분포 (디자인 45% / 개발 30% 등) | `GET /profiles/{slug}/tasks?limit=100` 기반 클라이언트 집계 |
 | 관심 키워드 | `POST /reviews/weekly` 응답의 review 텍스트에서 클라이언트 추출 (인증 시) |
@@ -426,6 +426,7 @@ v1에서 명시적으로 지원하지 않는 기능 목록이다.
 | 로그아웃 | 현재 디바이스 세션만 폐기, 204 반환 |
 | task CRUD | owner만 생성/수정/삭제 가능, 비인증 시 401, 타인 접근 시 403 |
 | 공개 프로필 | 비인증 방문자도 profile 및 public task 목록 조회 가능 |
+| 공개 프로필 페이지 라우팅 | 존재하지 않는 `@slug` 웹 페이지 접근 시 HTML 404 페이지를 반환 |
 | 공개 프로필 그룹 경계 | public task라도 연결 group이 private이면 profile task 목록에서 제외 |
 | 공개 프로필 AI 요약 | period(weekly/monthly/30days) 요청 시 공개 범위 task 기반 summary 반환, 비공개 프로필은 404 |
 | 월간 캘린더 | year/month 필수, task 없는 날도 0값 포함, 전체 월 반환 |
