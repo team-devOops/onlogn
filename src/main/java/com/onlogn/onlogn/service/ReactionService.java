@@ -98,7 +98,7 @@ public class ReactionService {
         return Map.of(
                 "task_id", taskId.toString(),
                 "emoji", emoji,
-                "active", existing.isActive(),
+                "requester_reacted", existing.isActive(),
                 "count", count
         );
     }
@@ -129,7 +129,7 @@ public class ReactionService {
         return Map.of(
                 "task_id", taskId.toString(),
                 "emoji", emoji,
-                "active", false,
+                "requester_reacted", false,
                 "count", count
         );
     }

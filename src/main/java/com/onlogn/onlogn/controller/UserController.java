@@ -4,6 +4,9 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.onlogn.onlogn.common.dto.DataMetaEnvelope;
 import com.onlogn.onlogn.entity.UserEntity;
 import com.onlogn.onlogn.service.UserService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -14,6 +17,7 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/v1/users")
+@Tag(name = "users")
 public class UserController {
 
     private final UserService userService;
@@ -35,6 +39,14 @@ public class UserController {
     }
 
     @GetMapping("/me")
+    @Operation(
+            operationId = "getCurrentUser",
+            summary = "현재 인증 사용자 조회",
+            description = "private 컨텍스트에서 인증 사용자의 전체 프로필 payload를 반환한다."
+    )
+    @ApiResponse(responseCode = "200", description = "인증 사용자 프로필 반환 성공.")
+    @ApiResponse(responseCode = "401", description = "RFC9457 problem details 응답.")
+    @ApiResponse(responseCode = "429", description = "스로틀링 정책에 의해 요청이 거부됨.")
     public ResponseEntity<DataMetaEnvelope<UserResponse>> me() {
         UUID userId = (UUID) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         UserEntity user = userService.getCurrentUser(userId);

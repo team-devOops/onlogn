@@ -10,6 +10,10 @@ import com.onlogn.onlogn.entity.UserEntity;
 import com.onlogn.onlogn.repository.UserRepository;
 import com.onlogn.onlogn.service.ProfileService;
 import com.onlogn.onlogn.service.TaskService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -25,6 +29,7 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/v1/profiles")
+@Tag(name = "profiles")
 public class ProfileController {
 
     private final ProfileService profileService;
@@ -56,20 +61,40 @@ public class ProfileController {
     }
 
     @GetMapping("/{slug}")
-    public ResponseEntity<DataMetaEnvelope<Map<String, Object>>> getProfile(@PathVariable String slug) {
+    @Operation(
+            operationId = "getProfileBySlug",
+            summary = "slug로 공개 프로필 조회",
+            description = "지정된 slug에 대해 공개 allowlist 프로필 객체를 반환한다.",
+            security = {}
+    )
+    @ApiResponse(responseCode = "200", description = "공개 프로필 반환 성공.")
+    @ApiResponse(responseCode = "404", description = "RFC9457 problem details 응답.")
+    @ApiResponse(responseCode = "429", description = "스로틀링 정책에 의해 요청이 거부됨.")
+    public ResponseEntity<DataMetaEnvelope<Map<String, Object>>> getProfile(
+            @Parameter(description = "프로필 slug") @PathVariable String slug) {
         Map<String, Object> profile = profileService.getPublicProfile(slug);
         return ResponseEntity.ok(DataMetaEnvelope.of(profile));
     }
 
     @GetMapping("/{slug}/tasks")
+    @Operation(
+            operationId = "listProfileTasks",
+            summary = "profile slug 기준 공개 task 목록 조회",
+            description = "지정된 profile slug의 공개 task만 반환한다.\n서버가 public visibility 경계를 강제한다.",
+            security = {},
+            tags = {"profiles", "tasks"}
+    )
+    @ApiResponse(responseCode = "200", description = "공개 task 목록 반환 성공.")
+    @ApiResponse(responseCode = "404", description = "RFC9457 problem details 응답.")
+    @ApiResponse(responseCode = "429", description = "스로틀링 정책에 의해 요청이 거부됨.")
     public ResponseEntity<DataMetaEnvelope<List<TaskResponse>>> getProfileTasks(
-            @PathVariable String slug,
-            @RequestParam(defaultValue = "0") int offset,
-            @RequestParam(defaultValue = "20") int limit,
-            @RequestParam(required = false) String status,
-            @RequestParam(required = false, name = "group_id") String groupId,
-            @RequestParam(required = false, name = "due_date_from") LocalDate dueDateFrom,
-            @RequestParam(required = false, name = "due_date_to") LocalDate dueDateTo) {
+            @Parameter(description = "프로필 slug") @PathVariable String slug,
+            @Parameter(description = "페이지 오프셋") @RequestParam(defaultValue = "0") int offset,
+            @Parameter(description = "페이지 크기 (최대 100)") @RequestParam(defaultValue = "20") int limit,
+            @Parameter(description = "task 상태 필터") @RequestParam(required = false) String status,
+            @Parameter(description = "group ID 필터") @RequestParam(required = false, name = "group_id") String groupId,
+            @Parameter(description = "due_date 시작 범위") @RequestParam(required = false, name = "due_date_from") LocalDate dueDateFrom,
+            @Parameter(description = "due_date 종료 범위") @RequestParam(required = false, name = "due_date_to") LocalDate dueDateTo) {
 
         limit = Math.min(limit, 100);
 

@@ -5,6 +5,10 @@ import com.onlogn.onlogn.common.dto.DataMetaEnvelope;
 import com.onlogn.onlogn.common.dto.ListMeta;
 import com.onlogn.onlogn.entity.TaskEntity;
 import com.onlogn.onlogn.service.TaskService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import org.springframework.data.domain.Page;
@@ -28,6 +32,7 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/v1/tasks")
+@Tag(name = "tasks")
 public class TaskController {
 
     private final TaskService taskService;
@@ -81,14 +86,22 @@ public class TaskController {
     }
 
     @GetMapping
+    @Operation(
+            operationId = "listTasks",
+            summary = "owner task 목록 조회",
+            description = "인증 사용자를 위한 owner 범위 task 목록.\n기준 정렬은 created_at desc, 타이브레이커는 id desc다."
+    )
+    @ApiResponse(responseCode = "200", description = "task 목록 반환 성공.")
+    @ApiResponse(responseCode = "401", description = "RFC9457 problem details 응답.")
+    @ApiResponse(responseCode = "429", description = "스로틀링 정책에 의해 요청이 거부됨.")
     public ResponseEntity<DataMetaEnvelope<List<TaskResponse>>> listTasks(
-            @RequestParam(defaultValue = "0") int offset,
-            @RequestParam(defaultValue = "20") int limit,
-            @RequestParam(required = false) String status,
-            @RequestParam(required = false) String visibility,
-            @RequestParam(required = false, name = "group_id") String groupId,
-            @RequestParam(required = false, name = "due_date_from") LocalDate dueDateFrom,
-            @RequestParam(required = false, name = "due_date_to") LocalDate dueDateTo) {
+            @Parameter(description = "페이지 오프셋") @RequestParam(defaultValue = "0") int offset,
+            @Parameter(description = "페이지 크기 (최대 100)") @RequestParam(defaultValue = "20") int limit,
+            @Parameter(description = "task 상태 필터") @RequestParam(required = false) String status,
+            @Parameter(description = "visibility 필터") @RequestParam(required = false) String visibility,
+            @Parameter(description = "group ID 필터") @RequestParam(required = false, name = "group_id") String groupId,
+            @Parameter(description = "due_date 시작 범위") @RequestParam(required = false, name = "due_date_from") LocalDate dueDateFrom,
+            @Parameter(description = "due_date 종료 범위") @RequestParam(required = false, name = "due_date_to") LocalDate dueDateTo) {
 
         limit = Math.min(limit, 100);
         UUID userId = (UUID) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
@@ -105,6 +118,16 @@ public class TaskController {
     }
 
     @PostMapping
+    @Operation(
+            operationId = "createTask",
+            summary = "owner task 생성",
+            description = "인증 owner 범위에서 task를 생성한다."
+    )
+    @ApiResponse(responseCode = "201", description = "task 생성 성공.")
+    @ApiResponse(responseCode = "400", description = "형식이 잘못된 요청 payload 또는 미지원 body 형태.")
+    @ApiResponse(responseCode = "401", description = "RFC9457 problem details 응답.")
+    @ApiResponse(responseCode = "422", description = "RFC9457 validation problem details 응답.")
+    @ApiResponse(responseCode = "429", description = "스로틀링 정책에 의해 요청이 거부됨.")
     public ResponseEntity<DataMetaEnvelope<TaskResponse>> createTask(
             @Valid @RequestBody CreateTaskRequest request) {
         UUID userId = (UUID) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
@@ -119,16 +142,38 @@ public class TaskController {
     }
 
     @GetMapping("/{task_id}")
+    @Operation(
+            operationId = "getTask",
+            summary = "owner task 조회",
+            description = "owner 범위 단일 task를 조회한다."
+    )
+    @ApiResponse(responseCode = "200", description = "task 반환 성공.")
+    @ApiResponse(responseCode = "401", description = "RFC9457 problem details 응답.")
+    @ApiResponse(responseCode = "403", description = "RFC9457 problem details 응답.")
+    @ApiResponse(responseCode = "404", description = "RFC9457 problem details 응답.")
+    @ApiResponse(responseCode = "429", description = "스로틀링 정책에 의해 요청이 거부됨.")
     public ResponseEntity<DataMetaEnvelope<TaskResponse>> getTask(
-            @PathVariable("task_id") UUID taskId) {
+            @Parameter(description = "task ID") @PathVariable("task_id") UUID taskId) {
         UUID userId = (UUID) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         TaskEntity task = taskService.getTask(taskId, userId);
         return ResponseEntity.ok(DataMetaEnvelope.of(toTaskResponse(task)));
     }
 
     @PatchMapping("/{task_id}")
+    @Operation(
+            operationId = "updateTask",
+            summary = "owner task 수정",
+            description = "owner 범위 task의 변경 가능한 필드를 수정한다."
+    )
+    @ApiResponse(responseCode = "200", description = "task 수정 성공.")
+    @ApiResponse(responseCode = "400", description = "형식이 잘못된 요청 payload 또는 미지원 body 형태.")
+    @ApiResponse(responseCode = "401", description = "RFC9457 problem details 응답.")
+    @ApiResponse(responseCode = "403", description = "RFC9457 problem details 응답.")
+    @ApiResponse(responseCode = "404", description = "RFC9457 problem details 응답.")
+    @ApiResponse(responseCode = "422", description = "RFC9457 validation problem details 응답.")
+    @ApiResponse(responseCode = "429", description = "스로틀링 정책에 의해 요청이 거부됨.")
     public ResponseEntity<DataMetaEnvelope<TaskResponse>> updateTask(
-            @PathVariable("task_id") UUID taskId,
+            @Parameter(description = "task ID") @PathVariable("task_id") UUID taskId,
             @Valid @RequestBody UpdateTaskRequest request) {
         UUID userId = (UUID) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
 
@@ -141,7 +186,18 @@ public class TaskController {
     }
 
     @DeleteMapping("/{task_id}")
-    public ResponseEntity<Void> deleteTask(@PathVariable("task_id") UUID taskId) {
+    @Operation(
+            operationId = "deleteTask",
+            summary = "owner task 삭제",
+            description = "owner 범위 task를 삭제한다."
+    )
+    @ApiResponse(responseCode = "204", description = "task 삭제 성공.")
+    @ApiResponse(responseCode = "401", description = "RFC9457 problem details 응답.")
+    @ApiResponse(responseCode = "403", description = "RFC9457 problem details 응답.")
+    @ApiResponse(responseCode = "404", description = "RFC9457 problem details 응답.")
+    @ApiResponse(responseCode = "429", description = "스로틀링 정책에 의해 요청이 거부됨.")
+    public ResponseEntity<Void> deleteTask(
+            @Parameter(description = "task ID") @PathVariable("task_id") UUID taskId) {
         UUID userId = (UUID) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         taskService.deleteTask(taskId, userId);
         return ResponseEntity.noContent().build();

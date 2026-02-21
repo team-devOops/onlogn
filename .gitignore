@@ -39,3 +39,4 @@ out/
 .opencode
 skills/
 .sisyphus
+.env
