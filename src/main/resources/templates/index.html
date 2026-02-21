@@ -57,8 +57,12 @@
         <h2 class="text-xl font-extrabold tracking-tight">O(NlogN)</h2>
     </div>
     <div class="hidden md:flex items-center gap-6">
-        <a class="text-sm font-medium text-sage-gray hover:text-primary transition-colors" href="/about">소개</a>
-        <a class="text-sm font-medium text-sage-gray hover:text-primary transition-colors" href="/features">기능</a>
+        <a class="text-sm font-medium text-sage-gray hover:text-primary transition-colors"
+           href="/about"
+           th:href="@{/about}">소개</a>
+        <a class="text-sm font-medium text-sage-gray hover:text-primary transition-colors"
+           href="/features"
+           th:href="@{/features}">기능</a>
         <button id="btn-github-login-top"
                 class="bg-primary/10 text-primary px-4 py-2 rounded-full text-sm font-bold hover:bg-primary/20 transition-all">
             GitHub 로그인
