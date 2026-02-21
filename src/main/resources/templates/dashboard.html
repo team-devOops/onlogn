@@ -99,6 +99,17 @@
         .custom-checkbox:hover {
             @apply border-primary;
         }
+        .toggle-checkbox:checked {
+            @apply right-0 border-primary bg-primary;
+        }
+        .toggle-checkbox:checked + .toggle-label {
+            @apply bg-primary/20;
+        }
+        @media (max-width: 768px) {
+            .settings-inner {
+                @apply fixed inset-0 h-full w-full max-w-none rounded-none;
+            }
+        }
     </style>
 </head>
 <body class="min-h-screen">
@@ -296,6 +307,87 @@
     </div>
 </div>
 
+<div id="settings-modal" class="hidden fixed inset-0 z-[100] items-center justify-center p-0 md:p-4">
+    <div id="settings-backdrop" class="absolute inset-0 bg-black/40 backdrop-blur-sm"></div>
+    <div class="modal-container relative bg-white dark:bg-[#1c2624] w-full max-w-[680px] h-full md:h-[520px] md:rounded-2xl shadow-2xl overflow-hidden flex flex-col md:flex-row settings-inner mx-auto my-auto">
+        <button id="settings-close" class="absolute top-4 right-4 z-20 size-8 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-white/10 cursor-pointer transition-colors">
+            <span class="material-symbols-outlined text-xl opacity-40">close</span>
+        </button>
+
+        <aside class="w-full md:w-[160px] bg-[#F5F5F0] dark:bg-white/5 border-r border-black/5 flex flex-col pt-12 md:pt-6 pb-4 px-3 gap-1 shrink-0">
+            <button data-settings-tab="profile" class="settings-tab-btn flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all cursor-pointer hover:bg-white/50 dark:hover:bg-white/10 bg-primary/20 text-primary font-bold">
+                <span class="material-symbols-outlined text-[18px]">person</span>
+                <span>프로필</span>
+            </button>
+            <button data-settings-tab="groups" class="settings-tab-btn flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all cursor-pointer hover:bg-white/50 dark:hover:bg-white/10">
+                <span class="material-symbols-outlined text-[18px]">label</span>
+                <span>그룹 관리</span>
+            </button>
+            <div class="mt-auto pt-4 border-t border-black/5">
+                <button id="btn-logout" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-red-400 hover:bg-red-50 dark:hover:bg-red-400/10 transition-all">
+                    <span class="material-symbols-outlined text-[18px]">logout</span>
+                    <span>로그아웃</span>
+                </button>
+            </div>
+        </aside>
+
+        <main class="flex-1 bg-white dark:bg-[#1c2624] overflow-y-auto p-6 md:p-8">
+            <div id="settings-tab-profile" class="settings-tab-content">
+                <h3 class="text-lg font-bold mb-6">프로필 설정</h3>
+                <div class="flex flex-col gap-6">
+                    <div class="flex items-center gap-4">
+                        <div class="size-16 rounded-full overflow-hidden border-2 border-primary/20 bg-primary/5 shrink-0">
+                            <img id="settings-avatar" alt="Profile" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDlIxV012rtQSh3c816kig9I1rbZnOaJmHo4nBU18epa_cHJBOc6RIKQrel5uCTlcNcSTueF4n7lQ00MlvOFxCrUlvWhepcY4Zj0o_WbyGjJMcgNheolAZmooM3x0N5zfuQI4cdQymnFkq50O66u5pVYll18Ueyt_dpRHayzgyPlxsiNIuOSpTxOzHITr8dSDi7W9LkBrkHVidABRjBJ3Kh3bBAYoewy4E22WO71VZ9Jbmn6BQLw4nA8-qoh9TmoWGa1K1ULgeX3AwG"/>
+                        </div>
+                        <div class="flex flex-col">
+                            <div class="flex items-center gap-1.5">
+                                <span id="settings-name" class="font-bold text-base"></span>
+                                <span id="settings-username" class="text-xs opacity-50"></span>
+                            </div>
+                            <a id="settings-profile-link" class="text-xs text-primary hover:underline mt-1" href="#" target="_blank">내 공개 프로필 보기</a>
+                        </div>
+                    </div>
+
+                    <div class="space-y-4">
+                        <div class="relative">
+                            <label class="block text-xs font-bold opacity-60 uppercase tracking-widest mb-1.5">바이오</label>
+                            <textarea id="settings-bio" class="w-full h-20 bg-[#F5F5F0]/50 dark:bg-white/5 border border-primary/10 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all resize-none" maxlength="100" placeholder="간단한 소개를 입력하세요"></textarea>
+                            <span id="settings-bio-count" class="absolute bottom-2.5 right-4 text-[10px] opacity-40">0 / 100</span>
+                        </div>
+                        <div class="flex flex-col gap-1">
+                            <div class="flex items-center justify-between py-1">
+                                <div class="flex items-center gap-2">
+                                    <span class="text-sm">🌐 내 프로필을 공개합니다</span>
+                                </div>
+                                <div class="relative inline-block w-10 mr-2 align-middle select-none">
+                                    <input id="settings-public-toggle" class="toggle-checkbox absolute block w-5 h-5 rounded-full bg-white border-4 appearance-none cursor-pointer transition-all duration-300 ease-in outline-none border-gray-300 right-5" type="checkbox" checked/>
+                                    <label class="toggle-label block overflow-hidden h-5 rounded-full bg-gray-300 cursor-pointer transition-all duration-300 ease-in" for="settings-public-toggle"></label>
+                                </div>
+                            </div>
+                            <p class="text-[11px] opacity-50">비공개 시 퍼블릭 프로필 페이지 접근 불가</p>
+                        </div>
+                    </div>
+
+                    <div class="mt-2">
+                        <button id="btn-save-profile" class="w-full bg-primary text-white font-bold py-3.5 rounded-xl hover:bg-primary/90 transition-all shadow-lg shadow-primary/10 disabled:opacity-50 disabled:shadow-none disabled:cursor-not-allowed" disabled>변경 사항 저장</button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="settings-tab-groups" class="settings-tab-content hidden">
+                <div class="flex items-center justify-between mb-6">
+                    <h3 class="text-lg font-bold">그룹 관리</h3>
+                    <button id="btn-add-group" class="text-xs font-bold text-primary flex items-center gap-1 hover:underline">
+                        <span class="material-symbols-outlined text-sm">add_circle</span>
+                        새 그룹 추가
+                    </button>
+                </div>
+                <div id="group-list" class="space-y-3"></div>
+            </div>
+        </main>
+    </div>
+</div>
+
 <script th:inline="javascript">
     const API_BASE = /*[[${apiBase}]]*/ '';
 </script>
@@ -323,6 +415,7 @@
             document.getElementById('btn-today').addEventListener('click', goToday);
             document.getElementById('btn-add-task').addEventListener('click', openAddTask);
             initModal();
+            initSettings();
 
             render();
             fetchTasks(selectedDate);
@@ -655,6 +748,151 @@
                     chip.classList.add('selected');
                 });
             });
+        }
+
+        function initSettings() {
+            document.getElementById('user-avatar').addEventListener('click', openSettings);
+            document.getElementById('settings-close').addEventListener('click', closeSettings);
+            document.getElementById('settings-backdrop').addEventListener('click', closeSettings);
+
+            document.querySelectorAll('.settings-tab-btn').forEach(btn => {
+                btn.addEventListener('click', () => switchSettingsTab(btn.dataset.settingsTab));
+            });
+
+            const bio = document.getElementById('settings-bio');
+            const saveBtn = document.getElementById('btn-save-profile');
+            const publicToggle = document.getElementById('settings-public-toggle');
+
+            let initialBio = '', initialPublic = true;
+
+            bio.addEventListener('input', () => {
+                document.getElementById('settings-bio-count').textContent = bio.value.length + ' / 100';
+                saveBtn.disabled = (bio.value === initialBio && publicToggle.checked === initialPublic);
+            });
+
+            publicToggle.addEventListener('change', () => {
+                saveBtn.disabled = (bio.value === initialBio && publicToggle.checked === initialPublic);
+            });
+
+            saveBtn.addEventListener('click', () => {
+                fetch(`${API_BASE}/api/profile`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        bio: bio.value,
+                        isPublic: publicToggle.checked
+                    })
+                }).then(r => {
+                    if (r.ok) {
+                        initialBio = bio.value;
+                        initialPublic = publicToggle.checked;
+                        saveBtn.disabled = true;
+                    }
+                });
+            });
+
+            document.getElementById('btn-logout').addEventListener('click', () => {
+                window.location.href = `${API_BASE}/logout`;
+            });
+
+            document.getElementById('btn-add-group').addEventListener('click', () => {
+                const name = prompt('새 그룹 이름을 입력하세요:');
+                if (!name || !name.trim()) return;
+                fetch(`${API_BASE}/api/groups`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: name.trim() })
+                }).then(r => { if (r.ok) fetchGroups(); });
+            });
+
+            window._settingsInitialState = { getBio: () => initialBio, setBio: v => initialBio = v, getPublic: () => initialPublic, setPublic: v => initialPublic = v };
+        }
+
+        function openSettings() {
+            const modal = document.getElementById('settings-modal');
+            modal.classList.remove('hidden');
+            modal.style.display = 'flex';
+            document.body.style.overflow = 'hidden';
+            switchSettingsTab('profile');
+            fetchProfile();
+            fetchGroups();
+        }
+
+        function closeSettings() {
+            const modal = document.getElementById('settings-modal');
+            modal.classList.add('hidden');
+            modal.style.display = '';
+            document.body.style.overflow = '';
+        }
+
+        function switchSettingsTab(tab) {
+            document.querySelectorAll('.settings-tab-btn').forEach(btn => {
+                const isActive = btn.dataset.settingsTab === tab;
+                btn.classList.toggle('bg-primary/20', isActive);
+                btn.classList.toggle('text-primary', isActive);
+                btn.classList.toggle('font-bold', isActive);
+            });
+            document.querySelectorAll('.settings-tab-content').forEach(content => {
+                content.classList.add('hidden');
+            });
+            const target = document.getElementById('settings-tab-' + tab);
+            if (target) target.classList.remove('hidden');
+        }
+
+        function fetchProfile() {
+            fetch(`${API_BASE}/api/profile`)
+                .then(r => r.ok ? r.json() : null)
+                .then(profile => {
+                    if (!profile) return;
+                    document.getElementById('settings-name').textContent = profile.name || '';
+                    document.getElementById('settings-username').textContent = profile.username ? '@' + profile.username : '';
+                    if (profile.avatarUrl) document.getElementById('settings-avatar').src = profile.avatarUrl;
+                    if (profile.profileUrl) document.getElementById('settings-profile-link').href = profile.profileUrl;
+
+                    const bio = document.getElementById('settings-bio');
+                    bio.value = profile.bio || '';
+                    document.getElementById('settings-bio-count').textContent = bio.value.length + ' / 100';
+                    document.getElementById('settings-public-toggle').checked = profile.isPublic !== false;
+                    document.getElementById('btn-save-profile').disabled = true;
+
+                    if (window._settingsInitialState) {
+                        window._settingsInitialState.setBio(bio.value);
+                        window._settingsInitialState.setPublic(profile.isPublic !== false);
+                    }
+                })
+                .catch(() => {});
+        }
+
+        function fetchGroups() {
+            fetch(`${API_BASE}/api/groups`)
+                .then(r => r.ok ? r.json() : [])
+                .then(groups => renderGroups(groups))
+                .catch(() => renderGroups([]));
+        }
+
+        function renderGroups(groups) {
+            const list = document.getElementById('group-list');
+            if (groups.length === 0) {
+                list.innerHTML = '<div class="py-8 text-center text-sm opacity-40">등록된 그룹이 없습니다</div>';
+                return;
+            }
+            list.innerHTML = groups.map(g => `
+                <div class="flex items-center justify-between p-4 bg-[#F5F5F0]/30 dark:bg-white/5 rounded-xl border border-primary/5 hover:border-primary/20 transition-all group">
+                    <div class="flex items-center gap-3">
+                        <span class="size-3 rounded-full" style="background-color: ${escapeHtml(g.color || '#82ccbd')}"></span>
+                        <span class="text-sm font-medium">${escapeHtml(g.name)}</span>
+                    </div>
+                    <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button onclick="deleteGroup('${g.id}')" class="size-8 flex items-center justify-center rounded-lg hover:bg-white dark:hover:bg-white/10 text-gray-400 hover:text-red-400 transition-all">
+                            <span class="material-symbols-outlined text-[18px]">delete</span>
+                        </button>
+                    </div>
+                </div>`).join('');
+        }
+
+        function deleteGroup(groupId) {
+            fetch(`${API_BASE}/api/groups/${groupId}`, { method: 'DELETE' })
+                .then(r => { if (r.ok) fetchGroups(); });
         }
 
         function formatDate(d) {
