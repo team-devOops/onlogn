@@ -375,6 +375,10 @@
                 <span class="material-symbols-outlined text-[18px]">label</span>
                 <span>그룹 관리</span>
             </button>
+            <button data-settings-tab="import" class="settings-tab-btn flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all cursor-pointer hover:bg-white/50 dark:hover:bg-white/10">
+                <span class="material-symbols-outlined text-[18px]">download</span>
+                <span>데이터 가져오기</span>
+            </button>
             <div class="mt-auto pt-4 border-t border-black/5">
                 <button id="btn-logout" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-red-400 hover:bg-red-50 dark:hover:bg-red-400/10 transition-all">
                     <span class="material-symbols-outlined text-[18px]">logout</span>
@@ -451,6 +455,42 @@
                     <button id="btn-add-group" class="text-sm font-bold text-primary flex items-center gap-2 hover:opacity-80 transition-opacity">
                         <span class="material-symbols-outlined text-[18px]">add_circle</span>
                         새 그룹 추가
+                    </button>
+                </div>
+            </div>
+
+            <div id="settings-tab-import" class="settings-tab-content hidden">
+                <h3 class="text-lg font-bold mb-6">데이터 가져오기</h3>
+                <div class="flex flex-col gap-6">
+                    <div>
+                        <p class="text-xs font-bold opacity-60 uppercase tracking-widest mb-3">가져오기 유형</p>
+                        <div class="grid grid-cols-2 gap-3">
+                            <label class="cursor-pointer">
+                                <input id="import-type-google" checked class="hidden peer" name="import-type" type="radio"/>
+                                <div class="p-3 rounded-xl border border-primary/20 bg-primary/5 text-center">
+                                    <span class="block text-sm font-bold text-primary">Google Tasks</span>
+                                </div>
+                            </label>
+                            <label class="cursor-not-allowed opacity-50">
+                                <input class="hidden peer" name="import-type" type="radio" disabled/>
+                                <div class="p-3 rounded-xl border border-primary/10 bg-[#F5F5F0]/40 dark:bg-white/5 text-center">
+                                    <span class="block text-sm">기본 형식 (JSON)</span>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+
+                    <input id="import-file-input" type="file" accept="application/json,.json" class="hidden"/>
+                    <div id="import-dropzone" class="border-2 border-dashed border-primary/20 rounded-2xl py-10 px-6 flex flex-col items-center justify-center gap-2 bg-[#F5F5F0]/30 dark:bg-white/5 hover:bg-[#F5F5F0]/50 dark:hover:bg-white/10 transition-colors cursor-pointer">
+                        <span class="material-symbols-outlined text-4xl opacity-20">upload_file</span>
+                        <p class="text-sm opacity-70 text-center">JSON 파일을 드래그하거나 클릭해 업로드</p>
+                        <p id="import-file-name" class="text-xs opacity-60 text-center">선택된 파일 없음 (최대 2GB, 파일 1개)</p>
+                    </div>
+
+                    <div id="import-result" class="hidden rounded-xl border border-primary/10 bg-primary/5 px-4 py-3 text-sm"></div>
+
+                    <button id="btn-start-import" class="w-full bg-primary text-white font-bold py-3.5 rounded-xl hover:bg-primary/90 transition-all shadow-lg shadow-primary/10 disabled:opacity-50 disabled:shadow-none disabled:cursor-not-allowed" disabled>
+                        데이터 가져오기 시작
                     </button>
                 </div>
             </div>
@@ -613,6 +653,8 @@
         let currentUser = null;
         let groupMap = {};
         let groupOrder = [];
+        let selectedImportFile = null;
+        const MAX_IMPORT_FILE_BYTES = 2 * 1024 * 1024 * 1024;
         const holidayDateSetByYear = {};
         const holidayFetchInFlightByYear = {};
         const rawFetch = window.fetch.bind(window);
@@ -2007,6 +2049,39 @@
                 renderGroups();
             });
 
+            const importInput = document.getElementById('import-file-input');
+            const importDropzone = document.getElementById('import-dropzone');
+            const importButton = document.getElementById('btn-start-import');
+
+            importInput.addEventListener('change', () => {
+                const file = importInput.files && importInput.files.length > 0 ? importInput.files[0] : null;
+                setImportFile(file);
+            });
+
+            importDropzone.addEventListener('click', () => {
+                importInput.click();
+            });
+
+            importDropzone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                importDropzone.classList.add('ring-2', 'ring-primary/30');
+            });
+
+            importDropzone.addEventListener('dragleave', () => {
+                importDropzone.classList.remove('ring-2', 'ring-primary/30');
+            });
+
+            importDropzone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                importDropzone.classList.remove('ring-2', 'ring-primary/30');
+                const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0
+                    ? e.dataTransfer.files[0]
+                    : null;
+                setImportFile(file);
+            });
+
+            importButton.addEventListener('click', startGoogleImport);
+
             window._settingsInitialState = {
                 getBio: () => initialBio,
                 setBio: v => initialBio = v,
@@ -2085,6 +2160,103 @@
             });
             const target = document.getElementById('settings-tab-' + tab);
             if (target) target.classList.remove('hidden');
+        }
+
+        function formatBytes(bytes) {
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+            if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+            return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
+        }
+
+        function setImportResult(message, isError) {
+            const result = document.getElementById('import-result');
+            result.classList.remove('hidden', 'text-red-500', 'border-red-200', 'bg-red-50/80', 'dark:bg-red-500/10');
+            if (isError) {
+                result.classList.add('text-red-500', 'border-red-200', 'bg-red-50/80', 'dark:bg-red-500/10');
+            }
+            result.textContent = message;
+        }
+
+        function clearImportResult() {
+            const result = document.getElementById('import-result');
+            result.classList.add('hidden');
+            result.textContent = '';
+        }
+
+        function setImportFile(file) {
+            const nameEl = document.getElementById('import-file-name');
+            const importBtn = document.getElementById('btn-start-import');
+            clearImportResult();
+
+            if (!file) {
+                selectedImportFile = null;
+                nameEl.textContent = '선택된 파일 없음 (최대 2GB, 파일 1개)';
+                importBtn.disabled = true;
+                return;
+            }
+
+            if (file.size > MAX_IMPORT_FILE_BYTES) {
+                selectedImportFile = null;
+                nameEl.textContent = `${file.name} (${formatBytes(file.size)})`;
+                importBtn.disabled = true;
+                setImportResult('파일 용량이 2GB를 초과합니다.', true);
+                return;
+            }
+
+            selectedImportFile = file;
+            nameEl.textContent = `${file.name} (${formatBytes(file.size)})`;
+            importBtn.disabled = false;
+        }
+
+        function startGoogleImport() {
+            if (!selectedImportFile) {
+                setImportResult('가져올 JSON 파일을 먼저 선택해주세요.', true);
+                return;
+            }
+
+            const importBtn = document.getElementById('btn-start-import');
+            importBtn.disabled = true;
+            importBtn.textContent = '가져오는 중...';
+
+            const formData = new FormData();
+            formData.append('file', selectedImportFile);
+
+            const headers = {};
+            const token = localStorage.getItem('access_token');
+            if (token) headers['Authorization'] = 'Bearer ' + token;
+
+            fetch('/api/v1/tasks/import/google', {
+                method: 'POST',
+                headers: headers,
+                body: formData
+            })
+                .then(async r => {
+                    if (!r.ok) {
+                        const problem = await r.json().catch(() => null);
+                        throw new Error(problem && problem.detail ? problem.detail : '가져오기에 실패했습니다.');
+                    }
+                    return r.json();
+                })
+                .then(resp => {
+                    const data = resp && resp.data ? resp.data : { created_count: 0, skipped_count: 0, failed_count: 0 };
+                    setImportResult(
+                        `가져오기 완료: 생성 ${data.created_count}건, 건너뜀 ${data.skipped_count}건, 실패 ${data.failed_count}건`,
+                        false
+                    );
+                    const input = document.getElementById('import-file-input');
+                    input.value = '';
+                    selectedImportFile = null;
+                    document.getElementById('import-file-name').textContent = '선택된 파일 없음 (최대 2GB, 파일 1개)';
+                    fetchTasks(selectedDate);
+                })
+                .catch((err) => {
+                    setImportResult(err.message || '가져오기 중 오류가 발생했습니다.', true);
+                })
+                .finally(() => {
+                    importBtn.textContent = '데이터 가져오기 시작';
+                    importBtn.disabled = selectedImportFile == null;
+                });
         }
 
         function fetchProfile() {

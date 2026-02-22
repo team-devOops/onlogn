@@ -286,3 +286,21 @@
   - import 성공률과 재실행 안정성(중복 방지)을 우선 확보한다.
   - 정보 손실(스타/마감일/계층 미반영)은 명시된 제품 정책으로 관리한다.
   - 향후 고급 동기화(2-way, hierarchy rehydrate)는 별도 ADR로 확장 가능하다.
+
+---
+
+## ADR-027: Google Tasks import API는 `/api/v1/tasks/import/google` + 파일 1개(최대 2GB) 정책으로 제공
+
+- **상태**: 승인
+- **결정**:
+  - import 실행 엔드포인트를 `POST /api/v1/tasks/import/google`로 제공한다.
+  - 요청 형식은 `multipart/form-data` 단일 `file` 파트(JSON)로 고정한다.
+  - 업로드 상한은 2GB(`spring.servlet.multipart.max-file-size`, `max-request-size`)로 제한한다.
+  - 결과는 `created_count/skipped_count/failed_count` 집계로 응답한다.
+- **근거**:
+  - 대시보드 설정 탭에서 사용자가 즉시 가져오기를 수행하려면 단순한 단일 파일 업로드 UX가 필요하다.
+  - 대용량 JSON 업로드를 위한 상한과 서버 검증이 없으면 운영 중 예측 불가능한 메모리/요청 실패가 발생할 수 있다.
+  - 기존 API 응답 규약(`DataMetaEnvelope`)을 유지하면 프런트 통합 비용이 낮다.
+- **결과**:
+  - UI 없이도 API 단독 테스트가 가능하고, 설정 화면에서 바로 연결 가능한 import 기반이 완성된다.
+  - 재실행 시 dedupe 정책과 결합되어 안전한 반복 import가 가능해진다.

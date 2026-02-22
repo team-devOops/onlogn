@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.onlogn.onlogn.common.dto.DataMetaEnvelope;
 import com.onlogn.onlogn.common.dto.ListMeta;
 import com.onlogn.onlogn.entity.TaskEntity;
+import com.onlogn.onlogn.service.GoogleTaskImportService;
 import com.onlogn.onlogn.service.TaskService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -11,6 +12,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
+import org.springframework.http.MediaType;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -24,6 +26,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -36,9 +39,11 @@ import java.util.UUID;
 public class TaskController {
 
     private final TaskService taskService;
+    private final GoogleTaskImportService googleTaskImportService;
 
-    public TaskController(TaskService taskService) {
+    public TaskController(TaskService taskService, GoogleTaskImportService googleTaskImportService) {
         this.taskService = taskService;
+        this.googleTaskImportService = googleTaskImportService;
     }
 
     public record TaskResponse(
@@ -82,6 +87,13 @@ public class TaskController {
             @JsonProperty("end_time") Instant endTime,
             List<String> tags,
             @JsonProperty("reference_links") List<String> referenceLinks
+    ) {
+    }
+
+    public record ImportTasksResponse(
+            @JsonProperty("created_count") int createdCount,
+            @JsonProperty("skipped_count") int skippedCount,
+            @JsonProperty("failed_count") int failedCount
     ) {
     }
 
@@ -201,6 +213,28 @@ public class TaskController {
         UUID userId = (UUID) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         taskService.deleteTask(taskId, userId);
         return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping(value = "/import/google", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Operation(
+            operationId = "importGoogleTasks",
+            summary = "Google Tasks JSON 가져오기",
+            description = "단일 JSON 파일을 업로드해 Google Tasks를 1레벨 task로 가져온다."
+    )
+    @ApiResponse(responseCode = "201", description = "가져오기 성공.")
+    @ApiResponse(responseCode = "400", description = "잘못된 파일/요청.")
+    @ApiResponse(responseCode = "401", description = "RFC9457 problem details 응답.")
+    @ApiResponse(responseCode = "429", description = "스로틀링 정책에 의해 요청이 거부됨.")
+    public ResponseEntity<DataMetaEnvelope<ImportTasksResponse>> importGoogleTasks(
+            @RequestParam("file") MultipartFile file) {
+        UUID userId = (UUID) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        GoogleTaskImportService.ImportResult result = googleTaskImportService.importFromJson(userId, file);
+        ImportTasksResponse response = new ImportTasksResponse(
+                result.createdCount(),
+                result.skippedCount(),
+                result.failedCount()
+        );
+        return ResponseEntity.status(HttpStatus.CREATED).body(DataMetaEnvelope.of(response));
     }
 
     private TaskResponse toTaskResponse(TaskEntity task) {

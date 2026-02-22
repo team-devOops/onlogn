@@ -72,7 +72,7 @@ O(NlogN)은 단순한 할 일 관리(TODO)가 아니라, 실행 기록을 꾸준
 
 ## 4. 엔드포인트 목록
 
-총 22개 엔드포인트. 기준 경로 접두사: `/api/v1`
+총 23개 엔드포인트. 기준 경로 접두사: `/api/v1`
 
 | # | Method | Path | 인증 요구 | 설명 |
 |---|--------|------|-----------|------|
@@ -91,13 +91,14 @@ O(NlogN)은 단순한 할 일 관리(TODO)가 아니라, 실행 기록을 꾸준
 | 13 | DELETE | `/groups/{group_id}` | 필요 | 그룹 삭제 |
 | 14 | GET | `/tasks` | 필요 | 내 task 목록 조회 |
 | 15 | POST | `/tasks` | 필요 | task 생성 |
-| 16 | GET | `/tasks/{task_id}` | 필요 | task 상세 조회 (owner 전용) |
-| 17 | PATCH | `/tasks/{task_id}` | 필요 | task 수정 (owner 전용) |
-| 18 | DELETE | `/tasks/{task_id}` | 필요 | task 삭제 (owner 전용) |
-| 19 | GET | `/tasks/calendar/monthly` | 필요 | 내 월간 캘린더 집계 |
-| 20 | GET | `/tasks/{task_id}/reactions` | 불필요 | task reaction 집계 조회 (public task만) |
-| 21 | POST | `/tasks/{task_id}/reactions` | 필요 | task reaction 토글 (public task만) |
-| 22 | DELETE | `/tasks/{task_id}/reactions?emoji=` | 필요 | task reaction 제거 (public task만) |
+| 16 | POST | `/tasks/import/google` | 필요 | Google Tasks JSON 파일 가져오기 (단일 파일, 최대 2GB) |
+| 17 | GET | `/tasks/{task_id}` | 필요 | task 상세 조회 (owner 전용) |
+| 18 | PATCH | `/tasks/{task_id}` | 필요 | task 수정 (owner 전용) |
+| 19 | DELETE | `/tasks/{task_id}` | 필요 | task 삭제 (owner 전용) |
+| 20 | GET | `/tasks/calendar/monthly` | 필요 | 내 월간 캘린더 집계 |
+| 21 | GET | `/tasks/{task_id}/reactions` | 불필요 | task reaction 집계 조회 (public task만) |
+| 22 | POST | `/tasks/{task_id}/reactions` | 필요 | task reaction 토글 (public task만) |
+| 23 | DELETE | `/tasks/{task_id}/reactions?emoji=` | 필요 | task reaction 제거 (public task만) |
 
 ---
 
@@ -112,6 +113,7 @@ O(NlogN)은 단순한 할 일 관리(TODO)가 아니라, 실행 기록을 꾸준
 | `GET /profiles/{slug}/tasks/calendar/monthly` | 허용 | 허용 | 허용 | profile timezone 기준 |
 | `GET /tasks` | 허용 | 거부 (403) | 거부 (401) | owner 전용 private 범위 |
 | `POST /tasks` | 허용 | 거부 (403) | 거부 (401) | owner task 생성 |
+| `POST /tasks/import/google` | 허용 | 거부 (403) | 거부 (401) | 단일 JSON 업로드 import |
 | `GET /tasks/{task_id}` | 허용 | 거부 (403/404) | 거부 (401/404) | v1 직접 조회는 owner 범위 |
 | `PATCH /tasks/{task_id}` | 허용 | 거부 (403) | 거부 (401) | owner 전용 수정 |
 | `DELETE /tasks/{task_id}` | 허용 | 거부 (403) | 거부 (401) | owner 전용 삭제 |
@@ -430,6 +432,7 @@ v1에서 명시적으로 지원하지 않는 기능 목록이다.
 | 토큰 갱신 | refresh 호출마다 토큰 회전, 이전 토큰 즉시 무효화 |
 | 로그아웃 | 현재 디바이스 세션만 폐기, 204 반환 |
 | task CRUD | owner만 생성/수정/삭제 가능, 비인증 시 401, 타인 접근 시 403 |
+| Google import | 단일 JSON 파일(최대 2GB) 업로드로 task import, 동일 `provider_task_id` 재실행 시 중복 생성되지 않음 |
 | 공개 프로필 | 비인증 방문자도 profile 및 public task 목록 조회 가능 |
 | 공개 프로필 페이지 라우팅 | 존재하지 않는 `@slug` 웹 페이지 접근 시 HTML 404 페이지를 반환 |
 | 공개 프로필 그룹 경계 | public task라도 연결 group이 private이면 profile task 목록에서 제외 |
@@ -545,3 +548,9 @@ v1에서 명시적으로 지원하지 않는 기능 목록이다.
 
 - 본 단계에서 Google Tasks 2-way sync(양방향 동기화)는 지원하지 않는다.
 - 본 단계에서 import 전용 UI(설정 화면, 진행률 뷰)는 구현하지 않는다.
+
+### 20.7 구현 상태
+
+- `POST /api/v1/tasks/import/google` 엔드포인트를 구현해 단일 JSON 파일 업로드를 지원한다.
+- 서버는 multipart 업로드 상한을 2GB로 제한한다.
+- 대시보드 설정 모달에 `데이터 가져오기` 탭을 추가해 파일 1개 업로드와 import 실행을 지원한다.

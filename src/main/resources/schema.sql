@@ -90,3 +90,16 @@ CREATE TABLE IF NOT EXISTS refresh_tokens (
     created_at      TIMESTAMP       NOT NULL,
     CONSTRAINT fk_refresh_tokens_user FOREIGN KEY (user_id) REFERENCES users(id)
 );
+
+-- 8. imported_task_mappings
+CREATE TABLE IF NOT EXISTS imported_task_mappings (
+    id               UUID            PRIMARY KEY,
+    owner_user_id    UUID            NOT NULL,
+    provider         VARCHAR(64)     NOT NULL,
+    provider_task_id VARCHAR(512)    NOT NULL,
+    task_id          UUID            NOT NULL,
+    created_at       TIMESTAMP       NOT NULL,
+    CONSTRAINT fk_imported_tasks_owner FOREIGN KEY (owner_user_id) REFERENCES users(id),
+    CONSTRAINT fk_imported_tasks_task FOREIGN KEY (task_id) REFERENCES tasks(id),
+    CONSTRAINT uk_imported_task_mapping_owner_provider_task UNIQUE (owner_user_id, provider, provider_task_id)
+);

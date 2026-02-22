@@ -25,6 +25,10 @@ spring:
   jackson:
     property-naming-strategy: SNAKE_CASE
     default-property-inclusion: non_null
+  servlet:
+    multipart:
+      max-file-size: 2GB
+      max-request-size: 2GB
 
 server:
   port: 3000

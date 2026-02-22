@@ -426,6 +426,39 @@ paths:
           $ref: '#/components/responses/ValidationProblemResponse'
         '500':
           $ref: '#/components/responses/ProblemResponse'
+  /api/v1/tasks/import/google:
+    post:
+      tags:
+        - tasks
+      summary: Google Tasks JSON 가져오기
+      operationId: importGoogleTasks
+      description: 단일 JSON 파일 업로드로 Google Tasks를 1레벨 task로 가져온다.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: 단일 JSON 파일. 최대 2GB.
+      responses:
+        '201':
+          description: 가져오기 완료.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskImportResponse'
+        '400':
+          $ref: '#/components/responses/ProblemResponse'
+        '401':
+          $ref: '#/components/responses/ProblemResponse'
+        '500':
+          $ref: '#/components/responses/ProblemResponse'
   /api/v1/tasks/{task_id}:
     get:
       tags:
@@ -1456,6 +1489,37 @@ components:
             limit: 20
             total: 1
             sort: created_at desc, id desc
+    TaskImportResult:
+      type: object
+      required:
+        - created_count
+        - skipped_count
+        - failed_count
+      properties:
+        created_count:
+          type: integer
+          minimum: 0
+          example: 12
+        skipped_count:
+          type: integer
+          minimum: 0
+          example: 3
+        failed_count:
+          type: integer
+          minimum: 0
+          example: 1
+    TaskImportResponse:
+      allOf:
+        - $ref: '#/components/schemas/DataMetaEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/TaskImportResult'
+      example:
+        data:
+          created_count: 12
+          skipped_count: 3
+          failed_count: 1
     TaskMonthlyCalendarDay:
       type: object
       required:

@@ -12,6 +12,7 @@ import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
@@ -51,7 +52,11 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(422).contentType(PROBLEM_JSON).body(body);
     }
 
-    @ExceptionHandler({MissingServletRequestParameterException.class, MethodArgumentTypeMismatchException.class})
+    @ExceptionHandler({
+            MissingServletRequestParameterException.class,
+            MethodArgumentTypeMismatchException.class,
+            MaxUploadSizeExceededException.class
+    })
     public ResponseEntity<ProblemResponse> handleBadRequest(Exception ex, HttpServletRequest request) {
         ProblemResponse body = ProblemResponse.of(
                 ProblemType.BAD_REQUEST.getType(),
