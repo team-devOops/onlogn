@@ -492,3 +492,56 @@ v1에서 명시적으로 지원하지 않는 기능 목록이다.
 - 리프레시 성공 시 새 `access_token`/`refresh_token`을 로컬 저장소에 반영하고, 실패한 원 요청을 1회 재시도해야 한다.
 - `/api/v1/auth/*` 요청 자체는 자동 리프레시 재귀 대상에서 제외해야 한다.
 - 리프레시 실패 시 세션 토큰(`access_token`, `refresh_token`, `token_expires_at`)을 정리해야 한다.
+
+---
+
+## 20. Google Tasks 가져오기(Import) 요구사항 (기획)
+
+본 절은 구현 전 기획 확정 요구사항이다. 본 요구사항은 현재 화면(UI) 변경 없이 백엔드 import 동작을 대상으로 한다.
+
+### 20.1 범위
+
+- Google Tasks 공식 API 응답 필드만 매핑한다.
+- 비공식/확장 필드(예: `starred`, `scheduled_time`, `task_type`, 커스텀 키)는 무시한다.
+- 가져오기 결과는 내부 task를 1레벨 평탄 구조로 생성/갱신한다.
+
+### 20.2 지원/비지원 필드 정책
+
+| 항목 | 정책 |
+|------|------|
+| 기본 task(title/status) | 지원 |
+| 하위 할 일(`parent`) | 구조는 보존하지 않고 1레벨 task로 import |
+| star 기능 | 미지원(무시) |
+| 마감일(`due`) | 미지원(무시) |
+| 그룹(TaskList/parent group) | 미지원(내부 `group_id=null`) |
+
+### 20.3 Google -> 내부 매핑 규칙
+
+| Google Tasks 필드 | 내부 반영 |
+|------------------|-----------|
+| `id` | provider dedupe 키(`provider_task_id`)로 사용 |
+| `title` | `tasks.title` |
+| `status=completed` | `tasks.status=done` |
+| `status=needsAction` | `tasks.status=todo` |
+| `notes` | 내부 메모/참조 보존 경로로 저장(구현체 정의) |
+| `parent` | 계층 연결 없이 일반 task로 생성 |
+| `deleted=true` 또는 `hidden=true` | import 대상에서 제외 |
+
+- 내부 생성 기본값은 `visibility=private`, `group_id=null`을 사용한다.
+
+### 20.4 멱등성/중복 방지
+
+- 동일 사용자 재실행 시 중복 task를 생성하면 안 된다.
+- 최소 키는 `(user_id, provider, provider_task_id)`를 사용한다.
+- 페이지 재시도/네트워크 재시도로 요청이 반복되어도 최종 상태가 동일해야 한다.
+
+### 20.5 페이지네이션/안정성
+
+- `tasks.list`의 `nextPageToken`이 소진될 때까지 순회해야 한다.
+- 같은 `provider_task_id`가 같은 런(run) 안에서 중복 수신되면 1회만 처리한다.
+- 결과 응답은 최소 `created/skipped/failed` 집계를 포함해야 한다.
+
+### 20.6 비목표
+
+- 본 단계에서 Google Tasks 2-way sync(양방향 동기화)는 지원하지 않는다.
+- 본 단계에서 import 전용 UI(설정 화면, 진행률 뷰)는 구현하지 않는다.
