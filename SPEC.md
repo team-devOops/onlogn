@@ -531,6 +531,7 @@ v1에서 명시적으로 지원하지 않는 기능 목록이다.
 | `deleted=true` 또는 `hidden=true` | import 대상에서 제외 |
 
 - 내부 생성 기본값은 `visibility=private`, `group_id=null`을 사용한다.
+- import 시 `due` 필드는 무시하지만, 대시보드 날짜 기반 노출 일관성을 위해 내부 `due_date`는 import 실행 시점의 사용자 timezone 오늘 날짜로 설정한다.
 
 ### 20.4 멱등성/중복 방지
 

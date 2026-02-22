@@ -12,6 +12,9 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -26,13 +29,16 @@ public class GoogleTaskImportService {
 
     private final ObjectMapper objectMapper;
     private final TaskService taskService;
+    private final UserService userService;
     private final ImportedTaskMappingRepository importedTaskMappingRepository;
 
     public GoogleTaskImportService(ObjectMapper objectMapper,
                                    TaskService taskService,
+                                   UserService userService,
                                    ImportedTaskMappingRepository importedTaskMappingRepository) {
         this.objectMapper = objectMapper;
         this.taskService = taskService;
+        this.userService = userService;
         this.importedTaskMappingRepository = importedTaskMappingRepository;
     }
 
@@ -46,6 +52,7 @@ public class GoogleTaskImportService {
         JsonNode root = parseJson(file);
         List<JsonNode> taskNodes = new ArrayList<>();
         collectTaskNodes(root, taskNodes);
+        LocalDate defaultDueDate = resolveUserToday(userId);
 
         int created = 0;
         int skipped = 0;
@@ -90,7 +97,7 @@ public class GoogleTaskImportService {
                         null,
                         mappedStatus,
                         "private",
-                        null,
+                        defaultDueDate,
                         null,
                         null,
                         null,
@@ -185,5 +192,18 @@ public class GoogleTaskImportService {
         }
         text = text.trim();
         return text.isEmpty() ? null : text;
+    }
+
+    private LocalDate resolveUserToday(UUID userId) {
+        String timezone = userService.getCurrentUser(userId).getTimezone();
+        ZoneId zone = ZoneOffset.UTC;
+        if (timezone != null && !timezone.isBlank()) {
+            try {
+                zone = ZoneId.of(timezone);
+            } catch (Exception ignore) {
+                zone = ZoneOffset.UTC;
+            }
+        }
+        return LocalDate.now(zone);
     }
 }

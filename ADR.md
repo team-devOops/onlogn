@@ -296,6 +296,7 @@
   - import 실행 엔드포인트를 `POST /api/v1/tasks/import/google`로 제공한다.
   - 요청 형식은 `multipart/form-data` 단일 `file` 파트(JSON)로 고정한다.
   - 업로드 상한은 2GB(`spring.servlet.multipart.max-file-size`, `max-request-size`)로 제한한다.
+  - Google `due` 필드는 매핑하지 않되, 대시보드 날짜 필터에서 즉시 보이도록 내부 `due_date`는 사용자 timezone 기준 import 당일로 설정한다.
   - 결과는 `created_count/skipped_count/failed_count` 집계로 응답한다.
 - **근거**:
   - 대시보드 설정 탭에서 사용자가 즉시 가져오기를 수행하려면 단순한 단일 파일 업로드 UX가 필요하다.
